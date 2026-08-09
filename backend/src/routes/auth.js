@@ -1,5 +1,4 @@
 import { Router } from "express";
-import bcrypt from "bcryptjs";
 import { signToken, requireAuth } from "../middleware/auth.js";
 
 const router = Router();
