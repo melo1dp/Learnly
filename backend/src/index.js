@@ -30,8 +30,9 @@ app.use("/api/progress", progressRoutes);
 
 // Fallback error handler
 app.use((err, req, res, next) => {
-  console.error(err);
-  res.status(500).json({ error: "Internal server error" });
+  console.error(err.stack || err);
+  const message = err.message || "Internal server error";
+  res.status(500).json({ error: message });
 });
 
 const PORT = process.env.PORT || 4000;
