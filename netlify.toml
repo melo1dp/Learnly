@@ -1,0 +1,8 @@
+[build]
+  publish = "mobile/dist"
+  command = "npm install --workspaces && cd mobile && npx expo export --platform web"
+
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

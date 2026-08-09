@@ -1,0 +1,26 @@
+{
+  "name": "learnly",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Adaptive e-learning platform with rules-based content delivery",
+  "workspaces": [
+    "backend",
+    "mobile"
+  ],
+  "engines": {
+    "node": "^20.19.4 || ^22.13.0 || ^24.3.0 || >=25.0.0"
+  },
+  "scripts": {
+    "dev": "concurrently -n backend,mobile -c blue,green \"npm run dev -w backend\" \"npm run start -w mobile\"",
+    "dev:web": "concurrently -n backend,web -c blue,magenta \"npm run dev -w backend\" \"npm run web -w mobile\"",
+    "dev:backend": "npm run dev -w backend",
+    "dev:mobile": "npm run start -w mobile",
+    "dev:web-only": "npm run web -w mobile",
+    "ios": "npm run ios -w mobile",
+    "android": "npm run android -w mobile",
+    "db:reset": "npm run db:reset -w backend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
+  }
+}

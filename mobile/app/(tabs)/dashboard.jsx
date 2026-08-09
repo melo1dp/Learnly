@@ -1,0 +1,164 @@
+import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { useRouter } from 'expo-router';
+import { useApi } from '../../lib/useApi';
+import {
+  Banner,
+  ContinueCard,
+  EmptyState,
+  ErrorScreen,
+  Loading,
+  Pill,
+  ProgressBar,
+  Row,
+  SectionHeader,
+} from '../../components/ui';
+import { colors, fonts, space, type } from '../../lib/theme';
+
+const MASTERY_CAP = 3;
+
+export default function Dashboard() {
+  const router = useRouter();
+  const { data, error, refreshing, refresh } = useApi('/progress');
+
+  if (error) return <ErrorScreen message={error} />;
+  if (!data) return <Loading />;
+
+  const continueRec = data.continueLearning;
+
+  return (
+    <View style={s.root}>
+      <LinearGradient
+        colors={[colors.bgWash, colors.bg, colors.bg]}
+        locations={[0, 0.28, 1]}
+        style={StyleSheet.absoluteFill}
+      />
+      <ScrollView
+        style={s.screen}
+        contentContainerStyle={s.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.accent} />
+        }
+      >
+        <Text style={s.title}>My progress</Text>
+        <Text style={s.lede}>Mastery, quiz history, and how Learnly steered your path.</Text>
+
+        {continueRec?.nextLesson ? (
+          <ContinueCard
+            lessonTitle={continueRec.nextLesson.title}
+            reason={continueRec.reason}
+            difficulty={continueRec.nextLesson.difficulty}
+            onPress={() => router.push(`/lessons/${continueRec.nextLesson.id}`)}
+          />
+        ) : null}
+
+        <SectionHeader title="Mastery by topic" subtitle="Nudged up or down after each quiz." />
+        {data.mastery.length === 0 && (
+          <EmptyState title="No mastery yet" body="Take a quiz to start building your profile." />
+        )}
+        {data.mastery.map((m) => (
+          <View key={m.topic} style={s.card}>
+            <Row>
+              <Text style={s.topic}>{m.topic}</Text>
+              <Pill label={m.status.replace('_', ' ')} tone={statusTone(m.status)} />
+            </Row>
+            <ProgressBar
+              value={m.mastery_level / MASTERY_CAP}
+              color={m.status === 'mastered' ? colors.brass : colors.accent}
+            />
+            <Text style={s.meta}>Mastery level {m.mastery_level}</Text>
+          </View>
+        ))}
+
+        <SectionHeader
+          title="Your adaptive path"
+          subtitle="Recommendations after each quiz attempt."
+        />
+        {(data.recommendations || []).length === 0 && (
+          <EmptyState
+            title="No adaptations yet"
+            body="Finish a quiz and the engine will record why it chose your next lesson."
+          />
+        )}
+        {(data.recommendations || []).map((r) => (
+          <Pressable
+            key={r.id}
+            disabled={!r.next_lesson_id}
+            onPress={() => r.next_lesson_id && router.push(`/lessons/${r.next_lesson_id}`)}
+            style={({ pressed }) => [pressed && r.next_lesson_id && { opacity: 0.85 }]}
+          >
+            <Banner outcome={r.outcome}>
+              <Row>
+                <Text style={s.outcome}>{r.outcome}</Text>
+                <Text style={s.scoreChip}>{r.score}%</Text>
+              </Row>
+              <Text style={s.reason}>{r.reason}</Text>
+              {r.next_lesson_title ? (
+                <Text style={s.nextHint}>Next · {r.next_lesson_title}</Text>
+              ) : (
+                <Text style={s.nextHint}>End of path for this topic</Text>
+              )}
+            </Banner>
+          </Pressable>
+        ))}
+
+        <SectionHeader title="Recent quiz attempts" />
+        {data.attempts.length === 0 && <EmptyState title="No attempts yet" />}
+        {data.attempts.map((a) => (
+          <View key={a.id} style={s.card}>
+            <Row>
+              <View style={s.attempt}>
+                <Text style={s.attemptTitle}>{a.lesson_title}</Text>
+                <Text style={s.meta}>
+                  {a.topic} · {a.taken_at}
+                </Text>
+              </View>
+              <Pill label={`${a.score}%`} />
+            </Row>
+          </View>
+        ))}
+      </ScrollView>
+    </View>
+  );
+}
+
+function statusTone(status) {
+  if (status === 'mastered') return 'mastered';
+  if (status === 'needs_review') return 'struggling';
+  return undefined;
+}
+
+const s = StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.bg },
+  screen: { flex: 1, backgroundColor: 'transparent' },
+  content: { padding: space.xl, paddingBottom: 56, gap: space.md },
+  title: { ...type.h1, color: colors.ink },
+  lede: { ...type.body, color: colors.muted, marginBottom: space.sm },
+  card: {
+    backgroundColor: colors.panel,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: space.xl,
+    gap: space.md,
+  },
+  topic: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 16,
+    color: colors.ink,
+    textTransform: 'capitalize',
+    flex: 1,
+  },
+  meta: { fontFamily: fonts.body, fontSize: 13, color: colors.muted },
+  attempt: { flex: 1, gap: 2 },
+  attemptTitle: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.ink },
+  outcome: {
+    fontFamily: fonts.bodyBold,
+    fontSize: 15,
+    color: colors.ink,
+    textTransform: 'capitalize',
+  },
+  scoreChip: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.muted },
+  reason: { fontFamily: fonts.body, fontSize: 14, lineHeight: 21, color: colors.ink },
+  nextHint: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.muted, marginTop: 2 },
+});

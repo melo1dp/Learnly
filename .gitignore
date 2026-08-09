@@ -1,0 +1,11 @@
+node_modules/
+.expo/
+.expo-shared/
+dist/
+build/
+.env
+.env.*
+!.env.example
+backend/learnly.sqlite*
+backend/node_modules/
+mobile/node_modules/
