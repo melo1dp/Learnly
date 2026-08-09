@@ -1,55 +1,54 @@
 import { Router } from "express";
+import bcrypt from "bcryptjs";
+import db from "../db/connection.js";
 import { signToken, requireAuth } from "../middleware/auth.js";
 
 const router = Router();
 
-const fallbackDemoUsers = {
-  "student@learnly.dev": {
-    password: "password123",
-    user: {
-      id: 1,
-      name: "Demo Student",
-      email: "student@learnly.dev",
-      role: "student",
-    },
-  },
-  "instructor@learnly.dev": {
-    password: "password123",
-    user: {
-      id: 2,
-      name: "Demo Instructor",
-      email: "instructor@learnly.dev",
-      role: "instructor",
-    },
-  },
-};
+const insertUser = db.prepare(
+  "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)",
+);
+const findUserByEmail = db.prepare(
+  "SELECT id, name, email, password_hash, role FROM users WHERE email = ?",
+);
+const findUserById = db.prepare(
+  "SELECT id, name, email, role FROM users WHERE id = ?",
+);
+
+function normalizeEmail(email) {
+  return String(email).trim().toLowerCase();
+}
+
+function publicUser(row) {
+  return { id: row.id, name: row.name, email: row.email, role: row.role };
+}
 
 // POST /api/auth/register  { name, email, password, role? }
 router.post("/register", (req, res, next) => {
   try {
     const { name, email, password, role } = req.body || {};
-    if (!name || !email || !password) {
+    const trimmedName = String(name || "").trim();
+    const normalizedEmail = normalizeEmail(email);
+
+    if (!trimmedName || !normalizedEmail || !password) {
       return res
         .status(400)
         .json({ error: "name, email and password are required" });
     }
 
-    const wantedRole = role === "instructor" ? "instructor" : "student";
-    const existing = fallbackDemoUsers[email];
-    if (existing) {
+    if (findUserByEmail.get(normalizedEmail)) {
       return res.status(409).json({ error: "Email already registered" });
     }
 
-    const user = {
-      id: Date.now(),
-      name,
-      email,
-      role: wantedRole,
-    };
-    fallbackDemoUsers[email] = {
-      password,
-      user,
-    };
+    const wantedRole = role === "instructor" ? "instructor" : "student";
+    const passwordHash = bcrypt.hashSync(password, 10);
+    const info = insertUser.run(
+      trimmedName,
+      normalizedEmail,
+      passwordHash,
+      wantedRole,
+    );
+    const user = findUserById.get(info.lastInsertRowid);
 
     res.status(201).json({ token: signToken(user), user });
   } catch (err) {
@@ -61,23 +60,18 @@ router.post("/register", (req, res, next) => {
 router.post("/login", (req, res, next) => {
   try {
     const { email, password } = req.body || {};
-    if (!email || !password) {
+    const normalizedEmail = normalizeEmail(email);
+
+    if (!normalizedEmail || !password) {
       return res.status(400).json({ error: "email and password are required" });
     }
 
-    let user;
-    const fallback = fallbackDemoUsers[email];
-
-    if (fallback && fallback.password === password) {
-      user = fallback.user;
-    } else {
+    const row = findUserByEmail.get(normalizedEmail);
+    if (!row || !bcrypt.compareSync(password, row.password_hash)) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
-    if (!user) {
-      return res.status(401).json({ error: "Invalid credentials" });
-    }
-
+    const user = publicUser(row);
     res.json({ token: signToken(user), user });
   } catch (err) {
     next(err);
@@ -85,8 +79,16 @@ router.post("/login", (req, res, next) => {
 });
 
 // GET /api/auth/me  — who am I (requires token)
-router.get("/me", requireAuth, (req, res) => {
-  res.json({ user: req.user });
+router.get("/me", requireAuth, (req, res, next) => {
+  try {
+    const user = findUserById.get(req.user.id);
+    if (!user) {
+      return res.status(401).json({ error: "User not found" });
+    }
+    res.json({ user });
+  } catch (err) {
+    next(err);
+  }
 });
 
 export default router;
