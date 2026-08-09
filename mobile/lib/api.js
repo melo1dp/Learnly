@@ -37,21 +37,21 @@ let cached;
 export function apiBaseUrl() {
   if (cached) return cached;
 
-  const explicit =
-    process.env.EXPO_PUBLIC_API_URL || "https://learnly-api-k6uj.onrender.com";
+  const explicit = process.env.EXPO_PUBLIC_API_URL;
   if (explicit) {
     cached = explicit.replace(/\/$/, "");
     return cached;
   }
 
-  const host = __DEV__ ? devHost() : null;
-  if (!host) {
-    throw new Error(
-      "EXPO_PUBLIC_API_URL is not set. Point it at the Learnly backend.",
-    );
+  if (__DEV__) {
+    const host = Platform.OS === "web" ? "localhost" : devHost();
+    if (host) {
+      cached = `http://${host}:${API_PORT}`;
+      return cached;
+    }
   }
 
-  cached = `http://${host}:${API_PORT}`;
+  cached = "https://learnly-api-k6uj.onrender.com";
   return cached;
 }
 
@@ -111,7 +111,20 @@ export async function api(path, { method = "GET", body } = {}) {
     );
   }
 
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  let data = {};
+  const text = await res.text();
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = { error: text };
+    }
+  }
+
+  if (!res.ok) {
+    const errorMessage = data.error || `Request failed (${res.status})`;
+    throw new Error(errorMessage);
+  }
+
   return data;
 }
