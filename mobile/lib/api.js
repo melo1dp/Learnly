@@ -38,7 +38,7 @@ export function apiBaseUrl() {
   if (cached) return cached;
 
   const explicit =
-    process.env.EXPO_PUBLIC_API_URL || "https://learnly-api.onrender.com";
+    process.env.EXPO_PUBLIC_API_URL || "https://learnly-api-k6uj.onrender.com";
   if (explicit) {
     cached = explicit.replace(/\/$/, "");
     return cached;
