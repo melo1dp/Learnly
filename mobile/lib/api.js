@@ -38,7 +38,7 @@ export function apiBaseUrl() {
   if (cached) return cached;
 
   const explicit = process.env.EXPO_PUBLIC_API_URL;
-  if (explicit) {
+  if (__DEV__ && explicit) {
     cached = explicit.replace(/\/$/, "");
     return cached;
   }
