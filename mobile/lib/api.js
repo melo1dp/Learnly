@@ -51,7 +51,7 @@ export function apiBaseUrl() {
     }
   }
 
-  cached = "https://learnly-api-k6uj.onrender.com";
+  cached = "https://unilearnly.onrender.com";
   return cached;
 }
 
