@@ -1,6 +1,5 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import db from "../db/connection.js";
 import { signToken, requireAuth } from "../middleware/auth.js";
 
 const router = Router();
@@ -35,22 +34,24 @@ router.post("/register", (req, res, next) => {
         .status(400)
         .json({ error: "name, email and password are required" });
     }
+
     const wantedRole = role === "instructor" ? "instructor" : "student";
-
-    const existing = db
-      .prepare("SELECT id FROM users WHERE email = ?")
-      .get(email);
-    if (existing)
+    const existing = fallbackDemoUsers[email];
+    if (existing) {
       return res.status(409).json({ error: "Email already registered" });
+    }
 
-    const password_hash = bcrypt.hashSync(password, 10);
-    const info = db
-      .prepare(
-        "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)",
-      )
-      .run(name, email, password_hash, wantedRole);
+    const user = {
+      id: Date.now(),
+      name,
+      email,
+      role: wantedRole,
+    };
+    fallbackDemoUsers[email] = {
+      password,
+      user,
+    };
 
-    const user = { id: info.lastInsertRowid, name, email, role: wantedRole };
     res.status(201).json({ token: signToken(user), user });
   } catch (err) {
     next(err);
@@ -65,45 +66,13 @@ router.post("/login", (req, res, next) => {
       return res.status(400).json({ error: "email and password are required" });
     }
 
-    let row;
     let user;
+    const fallback = fallbackDemoUsers[email];
 
-    try {
-      row = db.prepare("SELECT * FROM users WHERE email = ?").get(email);
-      if (row) {
-        const passwordHash = row.password_hash;
-        if (
-          typeof passwordHash !== "string" ||
-          !passwordHash.startsWith("$2")
-        ) {
-          return res.status(401).json({ error: "Invalid credentials" });
-        }
-
-        let isValid = false;
-        try {
-          isValid = bcrypt.compareSync(password, passwordHash);
-        } catch {
-          return res.status(401).json({ error: "Invalid credentials" });
-        }
-
-        if (!isValid) {
-          return res.status(401).json({ error: "Invalid credentials" });
-        }
-
-        user = {
-          id: row.id,
-          name: row.name,
-          email: row.email,
-          role: row.role,
-        };
-      }
-    } catch (dbError) {
-      const fallback = fallbackDemoUsers[email];
-      if (fallback && fallback.password === password) {
-        user = fallback.user;
-      } else {
-        return res.status(401).json({ error: "Invalid credentials" });
-      }
+    if (fallback && fallback.password === password) {
+      user = fallback.user;
+    } else {
+      return res.status(401).json({ error: "Invalid credentials" });
     }
 
     if (!user) {
