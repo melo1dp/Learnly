@@ -1,26 +1,6 @@
-import { Pressable, Text } from 'react-native';
-import { Tabs, useRouter } from 'expo-router';
+import { Tabs } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
-import { useAuth } from '../../lib/auth';
 import { colors, fonts } from '../../lib/theme';
-
-function LogoutButton() {
-  const { logout } = useAuth();
-  const router = useRouter();
-
-  return (
-    <Pressable
-      onPress={async () => {
-        await logout();
-        router.replace('/login');
-      }}
-      hitSlop={12}
-      style={{ paddingHorizontal: 16 }}
-    >
-      <Text style={{ color: colors.accent, fontSize: 14, fontFamily: fonts.bodySemi }}>Log out</Text>
-    </Pressable>
-  );
-}
 
 export default function TabsLayout() {
   return (
@@ -30,7 +10,6 @@ export default function TabsLayout() {
         headerShadowVisible: false,
         headerTintColor: colors.ink,
         headerTitleStyle: { color: colors.ink, fontFamily: fonts.bodySemi, fontSize: 17 },
-        headerRight: () => <LogoutButton />,
         tabBarStyle: {
           backgroundColor: colors.panel,
           borderTopColor: colors.border,
@@ -57,6 +36,15 @@ export default function TabsLayout() {
           title: 'My Progress',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="stats-chart" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: 'Profile',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="person-circle" color={color} size={size} />
           ),
         }}
       />

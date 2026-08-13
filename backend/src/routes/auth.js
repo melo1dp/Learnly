@@ -9,10 +9,10 @@ const insertUser = db.prepare(
   "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)",
 );
 const findUserByEmail = db.prepare(
-  "SELECT id, name, email, password_hash, role FROM users WHERE email = ?",
+  "SELECT id, name, email, password_hash, role, created_at FROM users WHERE email = ?",
 );
 const findUserById = db.prepare(
-  "SELECT id, name, email, role FROM users WHERE id = ?",
+  "SELECT id, name, email, role, created_at FROM users WHERE id = ?",
 );
 
 function normalizeEmail(email) {
@@ -20,7 +20,13 @@ function normalizeEmail(email) {
 }
 
 function publicUser(row) {
-  return { id: row.id, name: row.name, email: row.email, role: row.role };
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    role: row.role,
+    created_at: row.created_at,
+  };
 }
 
 // POST /api/auth/register  { name, email, password, role? }
