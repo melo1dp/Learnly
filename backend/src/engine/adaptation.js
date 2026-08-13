@@ -11,7 +11,7 @@
 //  and easy to demo live. Tune the thresholds below to change the behaviour.
 // ============================================================================
 
-import db from '../db/connection.js';
+import pool from '../db/connection.js';
 
 // --- Tunable rule thresholds (change these to tune the "adaptivity") ---
 export const RULES = {
@@ -31,20 +31,24 @@ const DIFFICULTY_ORDER = ['easy', 'medium', 'hard'];
  * @param {number} score     percentage 0-100
  * @returns {{ outcome, mastery, status, reason, nextLesson }}
  */
-export function adaptAfterQuiz(userId, lessonId, score) {
-  const lesson = db.prepare('SELECT * FROM lessons WHERE id = ?').get(lessonId);
+export async function adaptAfterQuiz(userId, lessonId, score) {
+  const lesson = (await pool.query('SELECT * FROM lessons WHERE id = $1', [lessonId])).rows[0];
   if (!lesson) throw new Error(`Lesson ${lessonId} not found`);
 
   const topic = lesson.topic;
 
   // Load (or create) the learner's progress row for this topic.
-  let progress = db
-    .prepare('SELECT * FROM learner_progress WHERE user_id = ? AND topic = ?')
-    .get(userId, topic);
+  let progress = (
+    await pool.query(
+      'SELECT * FROM learner_progress WHERE user_id = $1 AND topic = $2',
+      [userId, topic],
+    )
+  ).rows[0];
   if (!progress) {
-    db.prepare(
-      'INSERT INTO learner_progress (user_id, topic, mastery_level, status) VALUES (?, ?, 0, ?)'
-    ).run(userId, topic, 'in_progress');
+    await pool.query(
+      'INSERT INTO learner_progress (user_id, topic, mastery_level, status) VALUES ($1, $2, 0, $3)',
+      [userId, topic, 'in_progress'],
+    );
     progress = { user_id: userId, topic, mastery_level: 0, status: 'in_progress' };
   }
 
@@ -60,7 +64,7 @@ export function adaptAfterQuiz(userId, lessonId, score) {
     outcome = 'struggling';
     mastery = Math.max(mastery - 1, 0);
     status = 'needs_review';
-    nextLesson = findLesson({ courseId: lesson.course_id, topic, easierThan: lesson.difficulty });
+    nextLesson = await findLesson({ courseId: lesson.course_id, topic, easierThan: lesson.difficulty });
     reason = `You scored ${score}% (below ${RULES.STRUGGLING_BELOW}%). Let's revisit this topic with something easier.`;
   } else if (score >= RULES.MASTERED_AT_OR_ABOVE) {
     // Doing great: raise mastery. Once high enough, skip to the NEXT topic.
@@ -68,48 +72,42 @@ export function adaptAfterQuiz(userId, lessonId, score) {
     mastery = mastery + 1;
     if (mastery >= RULES.MASTERY_TO_ADVANCE) {
       status = 'mastered';
-      nextLesson = findLesson({ courseId: lesson.course_id, afterTopicOf: lesson });
+      nextLesson = await findLesson({ courseId: lesson.course_id, afterTopicOf: lesson });
       reason = `You scored ${score}% and mastered "${topic}". Moving you ahead to new material.`;
     } else {
       status = 'in_progress';
-      nextLesson = findLesson({ courseId: lesson.course_id, topic, harderThan: lesson.difficulty });
+      nextLesson = await findLesson({ courseId: lesson.course_id, topic, harderThan: lesson.difficulty });
       reason = `Great job — ${score}%! Here's a harder lesson on "${topic}" to lock it in.`;
     }
   } else {
     // In-between: reinforce with another MEDIUM lesson on the same topic.
     outcome = 'reinforce';
     status = 'in_progress';
-    nextLesson = findLesson({ courseId: lesson.course_id, topic, difficulty: 'medium', excludeId: lesson.id })
-      || findLesson({ courseId: lesson.course_id, topic, excludeId: lesson.id });
+    nextLesson =
+      (await findLesson({ courseId: lesson.course_id, topic, difficulty: 'medium', excludeId: lesson.id })) ||
+      (await findLesson({ courseId: lesson.course_id, topic, excludeId: lesson.id }));
     reason = `You scored ${score}%. Solid — let's reinforce "${topic}" before moving on.`;
   }
 
   // Persist updated learner profile.
-  db.prepare(
+  await pool.query(
     `UPDATE learner_progress
-       SET mastery_level = ?, status = ?, updated_at = datetime('now')
-     WHERE user_id = ? AND topic = ?`
-  ).run(mastery, status, userId, topic);
+       SET mastery_level = $1, status = $2, updated_at = NOW()
+     WHERE user_id = $3 AND topic = $4`,
+    [mastery, status, userId, topic],
+  );
 
   // Fallback: if no specific lesson matched, suggest the next unseen lesson in the course.
   if (!nextLesson) {
-    nextLesson = findNextUnseenLesson(userId, lesson.course_id, lesson.id);
+    nextLesson = await findNextUnseenLesson(userId, lesson.course_id, lesson.id);
   }
 
   // Persist the adaptation decision so the UI can show history + Continue.
-  db.prepare(
+  await pool.query(
     `INSERT INTO recommendations
        (user_id, lesson_id, next_lesson_id, score, outcome, reason, mastery, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(
-    userId,
-    lessonId,
-    nextLesson?.id ?? null,
-    score,
-    outcome,
-    reason,
-    mastery,
-    status
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [userId, lessonId, nextLesson?.id ?? null, score, outcome, reason, mastery, status],
   );
 
   return { outcome, mastery, status, reason, nextLesson: nextLesson || null };
@@ -120,31 +118,35 @@ export function adaptAfterQuiz(userId, lessonId, score) {
 // ---------------------------------------------------------------------------
 
 // Flexible finder used by the rules above.
-function findLesson({ courseId, topic, difficulty, easierThan, harderThan, excludeId, afterTopicOf }) {
+async function findLesson({ courseId, topic, difficulty, easierThan, harderThan, excludeId, afterTopicOf }) {
   // Jump to the first lesson of the *next* topic in the course.
   if (afterTopicOf) {
-    return db
-      .prepare(
+    return (
+      await pool.query(
         `SELECT * FROM lessons
-          WHERE course_id = ? AND position > ? AND topic != ?
-          ORDER BY position ASC LIMIT 1`
+          WHERE course_id = $1 AND position > $2 AND topic != $3
+          ORDER BY position ASC LIMIT 1`,
+        [courseId, afterTopicOf.position, afterTopicOf.topic],
       )
-      .get(courseId, afterTopicOf.position, afterTopicOf.topic);
+    ).rows[0];
   }
 
   let targetDifficulty = difficulty;
   if (easierThan) targetDifficulty = stepDifficulty(easierThan, -1);
   if (harderThan) targetDifficulty = stepDifficulty(harderThan, +1);
 
-  const clauses = ['course_id = ?'];
+  const clauses = ['course_id = $1'];
   const params = [courseId];
-  if (topic) { clauses.push('topic = ?'); params.push(topic); }
-  if (targetDifficulty) { clauses.push('difficulty = ?'); params.push(targetDifficulty); }
-  if (excludeId) { clauses.push('id != ?'); params.push(excludeId); }
+  if (topic) { params.push(topic); clauses.push(`topic = $${params.length}`); }
+  if (targetDifficulty) { params.push(targetDifficulty); clauses.push(`difficulty = $${params.length}`); }
+  if (excludeId) { params.push(excludeId); clauses.push(`id != $${params.length}`); }
 
-  return db
-    .prepare(`SELECT * FROM lessons WHERE ${clauses.join(' AND ')} ORDER BY position ASC LIMIT 1`)
-    .get(...params);
+  return (
+    await pool.query(
+      `SELECT * FROM lessons WHERE ${clauses.join(' AND ')} ORDER BY position ASC LIMIT 1`,
+      params,
+    )
+  ).rows[0];
 }
 
 // Move one step easier (-1) or harder (+1) in the difficulty ladder, clamped.
@@ -155,18 +157,19 @@ function stepDifficulty(current, delta) {
 }
 
 // Fallback: the earliest lesson in the course the learner has not yet taken a quiz on.
-function findNextUnseenLesson(userId, courseId, currentLessonId) {
-  return db
-    .prepare(
+async function findNextUnseenLesson(userId, courseId, currentLessonId) {
+  return (
+    await pool.query(
       `SELECT l.* FROM lessons l
-        WHERE l.course_id = ?
-          AND l.id != ?
+        WHERE l.course_id = $1
+          AND l.id != $2
           AND l.id NOT IN (
             SELECT q.lesson_id FROM quizzes q
             JOIN attempts a ON a.quiz_id = q.id
-            WHERE a.user_id = ?
+            WHERE a.user_id = $3
           )
-        ORDER BY l.position ASC LIMIT 1`
+        ORDER BY l.position ASC LIMIT 1`,
+      [courseId, currentLessonId, userId],
     )
-    .get(courseId, currentLessonId, userId);
+  ).rows[0];
 }

@@ -8,3 +8,5 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
+      # DATABASE_URL (hosted Postgres, e.g. Neon) and JWT_SECRET must be set
+      # in the Render dashboard as secrets — do not commit them here.

@@ -5,7 +5,7 @@ an adaptation engine decides what the learner should study next based on their s
 remedial content when struggling, harder content when mastering a topic.
 
 The client is a **native mobile app** (iOS + Android) built with React Native and Expo,
-talking to a Node/Express API backed by SQLite.
+talking to a Node/Express API backed by Postgres.
 
 ---
 
@@ -32,7 +32,7 @@ talking to a Node/Express API backed by SQLite.
 | -------- | --------------------------------------------------------------- |
 | Mobile   | React Native + Expo (SDK 57), expo-router                       |
 | Backend  | Node + Express (REST, port 4000)                                |
-| Database | SQLite via better-sqlite3 (a single file, no server to install) |
+| Database | Postgres (hosted, e.g. [Neon](https://neon.tech)'s free tier)   |
 | Auth     | JWT + bcrypt; the token is stored in the device keychain        |
 
 Seed curriculum: **13 courses, 117 lessons, 618 quiz questions** across computing, maths, science, social science, and humanities.
@@ -54,6 +54,7 @@ Seed curriculum: **13 courses, 117 lessons, 618 quiz questions** across computin
 | **Node.js** | **20.19.4+**, 22.13+, or 24.3+ | React Native rejects older versions. [nodejs.org](https://nodejs.org) — the LTS build is fine. Check with `node -v`. |
 | **npm**     | 10+                            | Ships with Node. Check with `npm -v`.                                                                                |
 | **Git**     | any                            | To clone the repo.                                                                                                   |
+| **A Postgres database** | any    | There's no local file DB anymore. The free tier of [Neon](https://neon.tech) or [Supabase](https://supabase.com) takes a minute to set up and gives you a connection string. |
 
 You also need **a device to run the app on** — pick at least one:
 
@@ -101,7 +102,13 @@ git clone <repo-url>
 cd Learnly
 
 npm install       # installs backend + mobile dependencies (one npm workspaces install)
-npm run db:reset  # creates and seeds backend/Learnly.sqlite
+```
+
+Copy `backend/.env.example` to `backend/.env` and set `DATABASE_URL` to your Postgres
+connection string (see [Configuration](#configuration)), then:
+
+```bash
+npm run db:reset  # creates and seeds the Postgres database
 npm run dev       # starts the API on :4000 and the Expo dev server together
 ```
 
@@ -133,6 +140,12 @@ brew install node
 
 ```bash
 npm install
+```
+
+Copy `backend/.env.example` to `backend/.env` and set `DATABASE_URL` (see
+[Configuration](#configuration)), then:
+
+```bash
 npm run db:reset
 ```
 
@@ -178,19 +191,14 @@ Close and reopen your terminal afterwards so `PATH` updates, then check `node -v
 
 ```powershell
 npm install
-npm run db:reset
 ```
 
-`better-sqlite3` is a native module. It normally installs a prebuilt binary with no
-compiler needed. If — and only if — `npm install` fails while building it, install the C++
-build tools and retry:
+Copy `backend/.env.example` to `backend/.env` and set `DATABASE_URL` (see
+[Configuration](#configuration)), then:
 
 ```powershell
-winget install Microsoft.VisualStudio.2022.BuildTools
+npm run db:reset
 ```
-
-Then in the Visual Studio Installer, tick the **"Desktop development with C++"** workload.
-Reopen your terminal and run `npm install` again.
 
 **3. Start the Android emulator** — open Android Studio → Device Manager → ▶ on your
 virtual device. Wait for it to reach the home screen.
@@ -275,7 +283,7 @@ two quizzes on the same topic instead and it promotes you to a new topic entirel
 
 ```
 Learnly/
-├── backend/                    Node + Express REST API, SQLite
+├── backend/                    Node + Express REST API, Postgres
 │   └── src/
 │       ├── engine/adaptation.js    ★ the rules-based recommendation engine
 │       ├── routes/                 auth, courses, lessons, quizzes, progress
@@ -316,13 +324,19 @@ Run these from the **repo root**:
 
 ## Configuration
 
-The backend reads `PORT` (default `4000`) and `JWT_SECRET` from the environment, via a
-`.env` file in `backend/` if you make one:
+The backend reads `PORT` (default `4000`), `JWT_SECRET`, and `DATABASE_URL` from the
+environment, via a `.env` file in `backend/` (copy `backend/.env.example` to start):
 
 ```
 PORT=4000
 JWT_SECRET=change-me-in-production
+DATABASE_URL=postgres://user:password@host/dbname?sslmode=require
 ```
+
+`DATABASE_URL` is required — there is no local file database to fall back to. Get a free
+connection string from [Neon](https://neon.tech) or [Supabase](https://supabase.com); both
+have a no-expiry free tier. In production (Render), set it as a dashboard environment
+variable rather than committing it.
 
 The app resolves the API address in this order:
 
@@ -339,11 +353,13 @@ See [`mobile/lib/api.js`](mobile/lib/api.js).
 
 ## Troubleshooting
 
-**`npm install` fails building better-sqlite3 (Windows).**
-Install the C++ build tools — see [step 2 of the Windows guide](#running-the-app--windows).
+**Backend fails to start with a database connection error.**
+`DATABASE_URL` is missing or wrong. Check `backend/.env`, and confirm the Postgres instance
+(Neon/Supabase) is active — free-tier instances can pause after inactivity and wake on the
+next connection, which takes a few seconds.
 
-**"Database file not found" when the backend starts.**
-Run `npm run db:reset`.
+**Backend logs "relation \"users\" does not exist" or similar.**
+The schema hasn't been created yet. Run `npm run db:reset`.
 
 **The app opens but every screen shows "Can't reach the Learnly backend…".**
 The API isn't running or is unreachable. Confirm `npm run dev:backend` is up by visiting

@@ -1,20 +1,13 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import { existsSync } from "node:fs";
 
-import { DB_PATH } from "./db/connection.js";
+import { initDb } from "./db/connection.js";
 import authRoutes from "./routes/auth.js";
 import courseRoutes from "./routes/courses.js";
 import lessonRoutes from "./routes/lessons.js";
 import quizRoutes from "./routes/quizzes.js";
 import progressRoutes from "./routes/progress.js";
-
-if (!existsSync(DB_PATH)) {
-  console.warn(
-    "\n⚠  Database file not found. Run `npm run db:reset` to create + seed it.\n",
-  );
-}
 
 const app = express();
 app.use(cors());
@@ -36,7 +29,15 @@ app.use((err, req, res, next) => {
 });
 
 const PORT = process.env.PORT || 4000;
-app.listen(PORT, "0.0.0.0", () => {
-  console.log(`Learnly API running on http://0.0.0.0:${PORT}`);
-  console.log(`Health check: http://0.0.0.0:${PORT}/api/health`);
-});
+
+initDb()
+  .then(() => {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Learnly API running on http://0.0.0.0:${PORT}`);
+      console.log(`Health check: http://0.0.0.0:${PORT}/api/health`);
+    });
+  })
+  .catch((err) => {
+    console.error("Database initialization failed:", err);
+    process.exit(1);
+  });

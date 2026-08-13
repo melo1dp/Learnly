@@ -16,7 +16,7 @@ new topic. The adaptation is driven by a transparent, **rules-based engine** rat
 machine learning, making the behaviour predictable, explainable, and fully demonstrable.
 
 The system ships as a native iOS/Android app (React Native + Expo) talking to a Node/Express
-REST API over JWT-authenticated HTTP, backed by SQLite.
+REST API over JWT-authenticated HTTP, backed by Postgres.
 
 ---
 
@@ -108,9 +108,9 @@ A classic **three-tier architecture**, with a native client as the presentation 
 │                    │  (rules + mastery)     │  │
 │                    └────────────────────────┘  │
 └──────────────────────┬────────────────────────┘
-                       │  SQL (better-sqlite3)
+                       │  SQL (pg / node-postgres)
 ┌──────────────────────▼────────────────────────┐
-│  DATA  — SQLite (single file)                 │
+│  DATA  — Postgres (hosted, e.g. Neon)         │
 │  users · courses · lessons · quizzes ·        │
 │  questions · attempts · learner_progress      │
 └───────────────────────────────────────────────┘
@@ -124,7 +124,7 @@ A classic **three-tier architecture**, with a native client as the presentation 
 | Navigation | expo-router | File-based routes; a route guard replaces per-page auth wrappers |
 | Token storage | expo-secure-store | Keychain (iOS) / Keystore (Android) — not plain device storage |
 | Backend | Node + Express | Lightweight, ubiquitous, easy REST |
-| Database | SQLite (better-sqlite3) | Zero-setup single file; graders run it instantly |
+| Database | Postgres (hosted, e.g. Neon) | Persists independently of the API process — survives restarts/redeploys, unlike a file on a host with an ephemeral disk |
 | Auth | JWT + bcrypt | Stateless auth; passwords never stored in plaintext |
 | Repo | npm workspaces monorepo | Backend + mobile in one place, one `npm run dev` |
 
@@ -361,7 +361,12 @@ the layer above it):
   otherwise show a stale mastery figure. Screens re-fetch when refocused.
 - **One-shot lesson+quiz creation.** The instructor form posts a lesson and its questions
   together, wrapped in a DB transaction so it is all-or-nothing.
-- **SQLite over a server DB.** Removes setup friction for anyone running/grading the project.
+- **SQLite, then Postgres.** The project started on SQLite (`better-sqlite3`) for zero-setup
+  local development. After deploying the backend to Render's free tier, registered accounts
+  were silently lost after the service restarted — Render's free web services have an
+  ephemeral filesystem, wiped on every redeploy or wake-from-sleep, and the SQLite file lived
+  on it. The fix was a hosted Postgres database (Neon's free tier) that persists independently
+  of the API container's lifecycle, not a workaround in the app code.
 
 ---
 
@@ -384,7 +389,8 @@ project [README](../README.md). The short version:
 
 ```bash
 npm install         # install backend + mobile dependencies
-npm run db:reset    # create + seed the SQLite database
+# set DATABASE_URL in backend/.env to a Postgres connection string (see README)
+npm run db:reset    # create + seed the Postgres database
 npm run dev         # backend on :4000  +  Expo dev server
 ```
 

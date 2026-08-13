@@ -1,4 +1,4 @@
-import Database from "better-sqlite3";
+import { Pool } from "pg";
 import bcrypt from "bcryptjs";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
@@ -13,30 +13,31 @@ import {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Single-file SQLite database living next to the source. Regenerate with `npm run db:reset`.
-export const DB_PATH = join(__dirname, "..", "..", "learnly.sqlite");
+// Hosted Postgres (e.g. Neon) lives outside the API container's filesystem,
+// so the database survives restarts/redeploys — unlike the old SQLite file.
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+  // Fail fast instead of hanging indefinitely if the network stalls the
+  // Postgres wire protocol handshake (seen with some local security software).
+  connectionTimeoutMillis: 10_000,
+  query_timeout: 20_000,
+});
 
-const db = new Database(DB_PATH);
-db.pragma("journal_mode = WAL");
-db.pragma("foreign_keys = ON");
-
-function seedDemoUsers() {
+async function seedDemoUsers() {
   console.log("Seeding demo users...");
   const hash = (pw) => bcrypt.hashSync(pw, 10);
-  db.prepare(
-    "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)",
-  ).run("Demo Student", "student@learnly.dev", hash("password123"), "student");
-  db.prepare(
-    "INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)",
-  ).run(
-    "Demo Instructor",
-    "instructor@learnly.dev",
-    hash("password123"),
-    "instructor",
+  await pool.query(
+    "INSERT INTO users (name, email, password_hash, role) VALUES ($1, $2, $3, $4)",
+    ["Demo Student", "student@learnly.dev", hash("password123"), "student"],
+  );
+  await pool.query(
+    "INSERT INTO users (name, email, password_hash, role) VALUES ($1, $2, $3, $4)",
+    ["Demo Instructor", "instructor@learnly.dev", hash("password123"), "instructor"],
   );
 }
 
-function seedCurriculum() {
+async function seedCurriculum() {
   const problems = courses.flatMap(validateCourse);
   if (problems.length) {
     throw new Error(
@@ -45,87 +46,87 @@ function seedCurriculum() {
   }
 
   console.log("Seeding demo curriculum...");
-  const insertCourse = db.prepare(
-    "INSERT INTO courses (title, description) VALUES (?, ?)",
-  );
-  const insertLesson = db.prepare(
-    `INSERT INTO lessons (course_id, title, body, topic, difficulty, position)
-     VALUES (@course_id, @title, @body, @topic, @difficulty, @position)`,
-  );
-  const insertQuiz = db.prepare(
-    "INSERT INTO quizzes (lesson_id, title) VALUES (?, ?)",
-  );
-  const insertQuestion = db.prepare(
-    `INSERT INTO questions (quiz_id, text, options, correct_index)
-     VALUES (@quiz_id, @text, @options, @correct_index)`,
-  );
+  const client = await pool.connect();
+  try {
+    await client.query("BEGIN");
 
-  const seedAll = db.transaction(() => {
     for (const course of courses) {
-      const courseId = insertCourse.run(
-        course.title,
-        course.description,
-      ).lastInsertRowid;
+      const courseId = (
+        await client.query(
+          "INSERT INTO courses (title, description) VALUES ($1, $2) RETURNING id",
+          [course.title, course.description],
+        )
+      ).rows[0].id;
 
       for (const lesson of flattenCourse(course)) {
-        const lessonId = insertLesson.run({
-          course_id: courseId,
-          title: lesson.title,
-          body: lesson.body,
-          topic: lesson.topic,
-          difficulty: lesson.difficulty,
-          position: lesson.position,
-        }).lastInsertRowid;
+        const lessonId = (
+          await client.query(
+            `INSERT INTO lessons (course_id, title, body, topic, difficulty, position)
+             VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+            [
+              courseId,
+              lesson.title,
+              lesson.body,
+              lesson.topic,
+              lesson.difficulty,
+              lesson.position,
+            ],
+          )
+        ).rows[0].id;
 
-        const quizId = insertQuiz.run(
-          lessonId,
-          `${lesson.title} — Quiz`,
-        ).lastInsertRowid;
+        const quizId = (
+          await client.query(
+            "INSERT INTO quizzes (lesson_id, title) VALUES ($1, $2) RETURNING id",
+            [lessonId, `${lesson.title} — Quiz`],
+          )
+        ).rows[0].id;
 
         for (const question of lesson.questions) {
+          // Shuffled so the correct answer isn't reliably option A — see schema.js.
           const q = shuffleQuestion(question);
-          insertQuestion.run({
-            quiz_id: quizId,
-            text: q.text,
-            options: JSON.stringify(q.options),
-            correct_index: q.correct_index,
-          });
+          await client.query(
+            `INSERT INTO questions (quiz_id, text, options, correct_index)
+             VALUES ($1, $2, $3, $4)`,
+            [quizId, q.text, JSON.stringify(q.options), q.correct_index],
+          );
         }
       }
     }
-  });
 
-  seedAll();
-}
-
-function initializeDatabase() {
-  try {
-    const tables = db
-      .prepare("SELECT name FROM sqlite_master WHERE type = 'table'")
-      .all();
-    const exists = tables.some((row) => row.name === "users");
-
-    if (!exists) {
-      console.log("Initializing SQLite schema...");
-      const schema = readFileSync(join(__dirname, "schema.sql"), "utf8");
-      db.exec(schema);
-    }
-
-    const userCount = db.prepare("SELECT COUNT(*) AS c FROM users").get().c;
-    if (userCount === 0) {
-      seedDemoUsers();
-    }
-
-    const courseCount = db.prepare("SELECT COUNT(*) AS c FROM courses").get().c;
-    if (courseCount === 0) {
-      seedCurriculum();
-    }
-  } catch (error) {
-    console.error("Database initialization failed:", error);
-    throw error;
+    await client.query("COMMIT");
+  } catch (err) {
+    await client.query("ROLLBACK");
+    throw err;
+  } finally {
+    client.release();
   }
 }
 
-initializeDatabase();
+export async function initDb() {
+  const tables = await pool.query(
+    "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'",
+  );
+  const exists = tables.rows.some((row) => row.table_name === "users");
 
-export default db;
+  if (!exists) {
+    console.log("Initializing Postgres schema...");
+    const schema = readFileSync(join(__dirname, "schema.sql"), "utf8");
+    await pool.query(schema);
+  }
+
+  const userCount = Number(
+    (await pool.query("SELECT COUNT(*) AS c FROM users")).rows[0].c,
+  );
+  if (userCount === 0) {
+    await seedDemoUsers();
+  }
+
+  const courseCount = Number(
+    (await pool.query("SELECT COUNT(*) AS c FROM courses")).rows[0].c,
+  );
+  if (courseCount === 0) {
+    await seedCurriculum();
+  }
+}
+
+export default pool;
