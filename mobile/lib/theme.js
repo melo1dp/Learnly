@@ -34,6 +34,13 @@ export const outcomeColor = {
 /** Soft accent stripes for course tiles (cycled by index). */
 export const stripePalette = ['#0F6B5C', '#1A8F6A', '#C4893A', '#2A6F7A', '#4A6B5C'];
 
+/** Stable per-course color, keyed by id rather than list position, so a course
+ *  keeps the same identity color on its tile and on its detail page. */
+export function colorForCourse(id) {
+  const n = Number(id) || 0;
+  return stripePalette[n % stripePalette.length];
+}
+
 export const radius = { sm: 10, md: 14, lg: 18, xl: 24, pill: 999 };
 
 export const space = { xs: 6, sm: 8, md: 12, lg: 16, xl: 20, xxl: 28, xxxl: 40 };

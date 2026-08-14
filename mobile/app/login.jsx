@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Animated, KeyboardAvoidingView, Platform } from "react-native";
+import { Animated, KeyboardAvoidingView, Platform, StyleSheet, View } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { Link, useRouter } from "expo-router";
 import { useAuth } from "../lib/auth";
 import {
@@ -60,7 +61,14 @@ export default function Login() {
         <Animated.View
           style={{ opacity: fade, transform: [{ translateY: slide }], gap: 16 }}
         >
-          <BrandMark subtitle="Sign in to continue your adaptive study plan." />
+          <View style={s.heroWrap}>
+            <LinearGradient
+              colors={[`${colors.accent}30`, `${colors.accent}00`]}
+              style={s.heroBlob}
+              pointerEvents="none"
+            />
+            <BrandMark subtitle="Sign in to continue your adaptive study plan." />
+          </View>
 
           <Card>
             <Field
@@ -110,3 +118,15 @@ export default function Login() {
     </KeyboardAvoidingView>
   );
 }
+
+const s = StyleSheet.create({
+  heroWrap: { alignItems: "flex-start" },
+  heroBlob: {
+    position: "absolute",
+    top: -50,
+    left: -40,
+    width: 220,
+    height: 220,
+    borderRadius: 110,
+  },
+});

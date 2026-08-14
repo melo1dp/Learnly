@@ -153,6 +153,7 @@ export default function Courses() {
         }
         renderItem={({ item, index }) => (
           <CourseTile
+            id={item.id}
             title={item.title}
             description={item.description}
             index={index}

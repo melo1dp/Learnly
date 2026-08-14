@@ -4,18 +4,18 @@ import { useRouter } from 'expo-router';
 import { useApi } from '../../lib/useApi';
 import {
   Banner,
+  Card,
   ContinueCard,
   EmptyState,
   ErrorScreen,
   Loading,
+  MasteryChart,
   Pill,
-  ProgressBar,
   Row,
   SectionHeader,
+  StatTile,
 } from '../../components/ui';
 import { colors, fonts, space, type } from '../../lib/theme';
-
-const MASTERY_CAP = 3;
 
 export default function Dashboard() {
   const router = useRouter();
@@ -25,6 +25,10 @@ export default function Dashboard() {
   if (!data) return <Loading />;
 
   const continueRec = data.continueLearning;
+  const masteredCount = (data.mastery || []).filter((m) => m.status === 'mastered').length;
+  const averageScore = data.attempts.length
+    ? Math.round(data.attempts.reduce((sum, a) => sum + a.score, 0) / data.attempts.length)
+    : 0;
 
   return (
     <View style={s.root}>
@@ -43,6 +47,12 @@ export default function Dashboard() {
         <Text style={s.title}>My progress</Text>
         <Text style={s.lede}>Mastery, quiz history, and how Learnly steered your path.</Text>
 
+        <Row style={s.statRow}>
+          <StatTile label="Quiz attempts" value={data.attempts.length} />
+          <StatTile label="Mastered topics" value={masteredCount} />
+          <StatTile label="Average score" value={`${averageScore}%`} />
+        </Row>
+
         {continueRec?.nextLesson ? (
           <ContinueCard
             lessonTitle={continueRec.nextLesson.title}
@@ -53,22 +63,13 @@ export default function Dashboard() {
         ) : null}
 
         <SectionHeader title="Mastery by topic" subtitle="Nudged up or down after each quiz." />
-        {data.mastery.length === 0 && (
+        {data.mastery.length === 0 ? (
           <EmptyState title="No mastery yet" body="Take a quiz to start building your profile." />
+        ) : (
+          <Card>
+            <MasteryChart data={data.mastery} />
+          </Card>
         )}
-        {data.mastery.map((m) => (
-          <View key={m.topic} style={s.card}>
-            <Row>
-              <Text style={s.topic}>{m.topic}</Text>
-              <Pill label={m.status.replace('_', ' ')} tone={statusTone(m.status)} />
-            </Row>
-            <ProgressBar
-              value={m.mastery_level / MASTERY_CAP}
-              color={m.status === 'mastered' ? colors.brass : colors.accent}
-            />
-            <Text style={s.meta}>Mastery level {m.mastery_level}</Text>
-          </View>
-        ))}
 
         <SectionHeader
           title="Your adaptive path"
@@ -122,18 +123,13 @@ export default function Dashboard() {
   );
 }
 
-function statusTone(status) {
-  if (status === 'mastered') return 'mastered';
-  if (status === 'needs_review') return 'struggling';
-  return undefined;
-}
-
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.bg },
   screen: { flex: 1, backgroundColor: 'transparent' },
   content: { padding: space.xl, paddingBottom: 56, gap: space.md },
   title: { ...type.h1, color: colors.ink },
   lede: { ...type.body, color: colors.muted, marginBottom: space.sm },
+  statRow: { gap: space.sm, marginBottom: space.sm },
   card: {
     backgroundColor: colors.panel,
     borderRadius: 18,
@@ -141,13 +137,6 @@ const s = StyleSheet.create({
     borderColor: colors.border,
     padding: space.xl,
     gap: space.md,
-  },
-  topic: {
-    fontFamily: fonts.bodyBold,
-    fontSize: 16,
-    color: colors.ink,
-    textTransform: 'capitalize',
-    flex: 1,
   },
   meta: { fontFamily: fonts.body, fontSize: 13, color: colors.muted },
   attempt: { flex: 1, gap: 2 },

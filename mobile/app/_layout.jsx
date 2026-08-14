@@ -41,6 +41,9 @@ const screenOptions = {
     fontSize: 17,
   },
   contentStyle: { backgroundColor: colors.bg },
+  // 'fade' rather than 'slide_from_right' — the latter isn't reliably
+  // supported by native-stack on web, where this app is mostly demoed.
+  animation: 'fade',
 };
 
 function RootNavigator({ fontsReady }) {
@@ -60,6 +63,7 @@ function RootNavigator({ fontsReady }) {
       <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
       <Stack.Screen name="login" options={{ headerShown: false }} />
       <Stack.Screen name="register" options={{ title: 'Create account' }} />
+      <Stack.Screen name="welcome" options={{ headerShown: false }} />
       <Stack.Screen name="courses/new" options={{ title: 'New course' }} />
       <Stack.Screen name="courses/[id]/index" options={{ title: 'Course' }} />
       <Stack.Screen name="courses/[id]/lessons/new" options={{ title: 'New lesson' }} />

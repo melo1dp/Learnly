@@ -12,6 +12,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import {
+  colorForCourse,
   colors,
   difficultyColor,
   fonts,
@@ -79,21 +80,52 @@ export function EmptyState({ title, body }) {
   );
 }
 
-export function CourseTile({ title, description, index = 0, onPress }) {
+// Maps a course title to a representative Ionicons name, by keyword.
+const ICON_KEYWORDS = [
+  [/python|programming/i, 'code-slash'],
+  [/web|html|css|javascript/i, 'globe'],
+  [/database|sql/i, 'server'],
+  [/data structure/i, 'git-network'],
+  [/biology|cell/i, 'leaf'],
+  [/environment/i, 'earth'],
+  [/history|revolution/i, 'time'],
+  [/writing/i, 'create'],
+  [/psycholog/i, 'happy'],
+  [/econom/i, 'cash'],
+  [/algebra|math/i, 'calculator'],
+  [/statistic/i, 'stats-chart'],
+];
+
+export function courseIconFor(title = '') {
+  const match = ICON_KEYWORDS.find(([re]) => re.test(title));
+  return match ? match[1] : 'book';
+}
+
+export function usePressScale({ to = 0.98 } = {}) {
   const scale = useRef(new Animated.Value(1)).current;
-  const stripe = stripePalette[index % stripePalette.length];
 
   function pressIn() {
-    Animated.spring(scale, { toValue: 0.98, useNativeDriver: true, speed: 40, bounciness: 4 }).start();
+    Animated.spring(scale, { toValue: to, useNativeDriver: true, speed: 40, bounciness: 4 }).start();
   }
   function pressOut() {
     Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: 40, bounciness: 4 }).start();
   }
 
+  return { scale, pressIn, pressOut };
+}
+
+export function CourseTile({ id, title, description, index = 0, onPress }) {
+  const { scale, pressIn, pressOut } = usePressScale();
+  const stripe = id != null ? colorForCourse(id) : stripePalette[index % stripePalette.length];
+  const icon = courseIconFor(title);
+
   return (
     <Pressable onPress={onPress} onPressIn={pressIn} onPressOut={pressOut}>
       <Animated.View style={[s.courseTile, { transform: [{ scale }] }]}>
         <View style={[s.courseStripe, { backgroundColor: stripe }]} />
+        <View style={[s.courseIconWrap, { backgroundColor: `${stripe}18` }]}>
+          <Ionicons name={icon} size={20} color={stripe} />
+        </View>
         <View style={s.courseBody}>
           <Text style={s.courseTitle} numberOfLines={2}>
             {title}
@@ -111,56 +143,114 @@ export function CourseTile({ title, description, index = 0, onPress }) {
 }
 
 export function LessonRow({ index, title, topic, difficulty, onPress }) {
+  const { scale, pressIn, pressOut } = usePressScale();
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [s.lessonRow, pressed && s.pressed]}>
-      <View style={s.lessonNum}>
-        <Text style={s.lessonNumText}>{index}</Text>
-      </View>
-      <View style={s.lessonBody}>
-        <Text style={s.lessonTitle} numberOfLines={2}>
-          {title}
-        </Text>
-        <Text style={s.lessonMeta}>Topic · {topic}</Text>
-      </View>
-      <Pill label={difficulty} tone={difficulty} />
+    <Pressable onPress={onPress} onPressIn={pressIn} onPressOut={pressOut}>
+      <Animated.View style={[s.lessonRow, { transform: [{ scale }] }]}>
+        <View style={s.lessonNum}>
+          <Text style={s.lessonNumText}>{index}</Text>
+        </View>
+        <View style={s.lessonBody}>
+          <Text style={s.lessonTitle} numberOfLines={2}>
+            {title}
+          </Text>
+          <Text style={s.lessonMeta}>Topic · {topic}</Text>
+        </View>
+        <Pill label={difficulty} tone={difficulty} />
+      </Animated.View>
     </Pressable>
   );
 }
 
 export function ContinueCard({ lessonTitle, reason, difficulty, onPress }) {
+  const { scale, pressIn, pressOut } = usePressScale();
   if (!lessonTitle) return null;
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [s.continueCard, pressed && s.pressed]}>
-      <Text style={s.continueEyebrow}>Continue learning</Text>
-      <Text style={s.continueTitle} numberOfLines={2}>
-        {lessonTitle}
-      </Text>
-      {reason ? (
-        <Text style={s.continueReason} numberOfLines={2}>
-          {reason}
+    <Pressable onPress={onPress} onPressIn={pressIn} onPressOut={pressOut}>
+      <Animated.View style={[s.continueCard, { transform: [{ scale }] }]}>
+        <Text style={s.continueEyebrow}>Continue learning</Text>
+        <Text style={s.continueTitle} numberOfLines={2}>
+          {lessonTitle}
         </Text>
-      ) : null}
-      <View style={s.continueFooter}>
-        {difficulty ? <Pill label={difficulty} tone={difficulty} /> : <View />}
-        <Text style={s.continueCta}>Open lesson →</Text>
-      </View>
+        {reason ? (
+          <Text style={s.continueReason} numberOfLines={2}>
+            {reason}
+          </Text>
+        ) : null}
+        <View style={s.continueFooter}>
+          {difficulty ? <Pill label={difficulty} tone={difficulty} /> : <View />}
+          <Text style={s.continueCta}>Open lesson →</Text>
+        </View>
+      </Animated.View>
     </Pressable>
   );
 }
 
+const BURST_DOTS = 8;
+
 export function ScoreHero({ score, correct, total }) {
   const anim = useRef(new Animated.Value(0)).current;
+  const burst = useRef(new Animated.Value(0)).current;
   const [display, setDisplay] = useState(0);
+  const celebrate = score >= 80;
 
   useEffect(() => {
     anim.setValue(0);
+    burst.setValue(0);
     const id = anim.addListener(({ value }) => setDisplay(Math.round(value)));
     Animated.timing(anim, { toValue: score, duration: 900, useNativeDriver: false }).start();
+    if (celebrate) {
+      Animated.timing(burst, {
+        toValue: 1,
+        duration: 700,
+        delay: 250,
+        useNativeDriver: true,
+      }).start();
+    }
     return () => anim.removeListener(id);
-  }, [score, anim]);
+  }, [score, anim, burst, celebrate]);
 
   return (
     <View style={s.scoreHero}>
+      {celebrate ? (
+        <View style={s.burstWrap} pointerEvents="none">
+          {Array.from({ length: BURST_DOTS }).map((_, i) => {
+            const angle = (i / BURST_DOTS) * Math.PI * 2;
+            const distance = 70;
+            return (
+              <Animated.View
+                key={i}
+                style={[
+                  s.burstDot,
+                  {
+                    opacity: burst.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+                    transform: [
+                      {
+                        translateX: burst.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, Math.cos(angle) * distance],
+                        }),
+                      },
+                      {
+                        translateY: burst.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0, Math.sin(angle) * distance],
+                        }),
+                      },
+                      {
+                        scale: burst.interpolate({
+                          inputRange: [0, 0.3, 1],
+                          outputRange: [0, 1, 0.4],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              />
+            );
+          })}
+        </View>
+      ) : null}
       <Text style={s.scoreValue}>{display}%</Text>
       <Text style={s.scoreSub}>
         {correct} of {total} correct
@@ -302,6 +392,61 @@ export function ProgressBar({ value, color = colors.accent }) {
   );
 }
 
+const MASTERY_CAP = 3;
+// Brass (not accent) for in_progress — accent and good are both teal-green and
+// read as near-identical for colorblind viewers; brass/good/bad stay distinct.
+const masteryBarColor = {
+  mastered: colors.good,
+  needs_review: colors.bad,
+  in_progress: colors.brass,
+};
+
+/** Horizontal bar-per-topic mastery chart. Sorted highest-mastery first. */
+export function MasteryChart({ data }) {
+  const sorted = [...data].sort((a, b) => b.mastery_level - a.mastery_level);
+  return (
+    <View style={s.masteryChart}>
+      {sorted.map((m) => (
+        <View key={m.topic} style={s.masteryRow}>
+          <Row style={s.masteryHead}>
+            <Text style={s.masteryTopic}>{m.topic}</Text>
+            <Pill
+              label={m.status.replace('_', ' ')}
+              tone={m.status === 'mastered' ? 'mastered' : m.status === 'needs_review' ? 'struggling' : undefined}
+            />
+          </Row>
+          <Row style={s.masteryBarRow}>
+            <View style={s.masteryTrack}>
+              <View
+                style={[
+                  s.masteryFill,
+                  {
+                    width: `${Math.min(m.mastery_level / MASTERY_CAP, 1) * 100}%`,
+                    backgroundColor: masteryBarColor[m.status] || colors.accent,
+                  },
+                ]}
+              />
+            </View>
+            <Text style={s.masteryValue}>
+              {m.mastery_level}/{MASTERY_CAP}
+            </Text>
+          </Row>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** Small labeled number tile — a row of these is the dashboard's stat summary. */
+export function StatTile({ label, value }) {
+  return (
+    <View style={s.statTile}>
+      <Text style={s.statTileValue}>{value}</Text>
+      <Text style={s.statTileLabel}>{label}</Text>
+    </View>
+  );
+}
+
 const s = StyleSheet.create({
   flex: { flex: 1 },
   screenContent: { padding: space.xl, paddingBottom: 56, gap: space.md },
@@ -355,6 +500,15 @@ const s = StyleSheet.create({
     ...shadow.soft,
   },
   courseStripe: { width: 6, alignSelf: 'stretch' },
+  courseIconWrap: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginLeft: space.lg,
+    alignSelf: 'center',
+  },
   courseBody: { flex: 1, paddingVertical: space.lg, paddingHorizontal: space.lg, gap: 4 },
   courseTitle: { ...type.h3, color: colors.ink },
   courseDesc: { ...type.caption, color: colors.muted },
@@ -419,6 +573,22 @@ const s = StyleSheet.create({
   },
   scoreValue: { ...type.score, color: colors.accent },
   scoreSub: { ...type.body, color: colors.muted },
+  burstWrap: {
+    position: 'absolute',
+    top: '38%',
+    left: '50%',
+    width: 0,
+    height: 0,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  burstDot: {
+    position: 'absolute',
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: colors.brass,
+  },
 
   h1: { ...type.h1, color: colors.ink },
   h3: { ...type.h3, color: colors.ink },
@@ -466,6 +636,52 @@ const s = StyleSheet.create({
     fontSize: 11,
     color: colors.muted,
     textTransform: 'capitalize',
+  },
+
+  masteryChart: { gap: space.lg },
+  masteryRow: { gap: space.xs },
+  masteryHead: { justifyContent: 'space-between' },
+  masteryTopic: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 14,
+    color: colors.ink,
+    textTransform: 'capitalize',
+  },
+  masteryBarRow: { gap: space.sm },
+  masteryTrack: {
+    flex: 1,
+    height: 10,
+    borderRadius: radius.pill,
+    backgroundColor: colors.panel2,
+    overflow: 'hidden',
+  },
+  masteryFill: { height: '100%', borderRadius: radius.pill },
+  masteryValue: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 12,
+    color: colors.muted,
+    width: 32,
+    textAlign: 'right',
+  },
+
+  statTile: {
+    flex: 1,
+    backgroundColor: colors.panel,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    paddingVertical: space.lg,
+    paddingHorizontal: space.md,
+    alignItems: 'center',
+    gap: 2,
+    ...shadow.soft,
+  },
+  statTileValue: { fontFamily: fonts.displayBold, fontSize: 24, color: colors.accent },
+  statTileLabel: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 12,
+    color: colors.muted,
+    textAlign: 'center',
   },
 
   field: { gap: space.xs },

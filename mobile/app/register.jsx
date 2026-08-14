@@ -43,7 +43,7 @@ export default function Register() {
         form.password,
         form.role,
       );
-      router.replace("/");
+      router.replace("/welcome");
     } catch (err) {
       setError(err.message);
     } finally {

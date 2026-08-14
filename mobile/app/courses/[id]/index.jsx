@@ -1,19 +1,18 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useApi } from '../../../lib/useApi';
 import { useAuth } from '../../../lib/auth';
 import {
+  courseIconFor,
   EmptyState,
   ErrorScreen,
-  H1,
   LessonRow,
   Loading,
-  Muted,
   Screen,
   SectionHeader,
 } from '../../../components/ui';
-import { colors } from '../../../lib/theme';
+import { colorForCourse, colors, fonts, radius, space, type } from '../../../lib/theme';
 
 export default function CourseDetail() {
   const { id } = useLocalSearchParams();
@@ -45,9 +44,12 @@ export default function CourseDetail() {
       />
 
       <Screen>
-        <View style={s.intro}>
-          <H1>{course.title}</H1>
-          <Muted>{course.description}</Muted>
+        <View style={[s.banner, { backgroundColor: colorForCourse(course.id) }]}>
+          <View style={s.bannerIconWrap}>
+            <Ionicons name={courseIconFor(course.title)} size={26} color={colors.white} />
+          </View>
+          <Text style={s.bannerTitle}>{course.title}</Text>
+          {course.description ? <Text style={s.bannerDesc}>{course.description}</Text> : null}
         </View>
 
         <SectionHeader
@@ -75,5 +77,21 @@ export default function CourseDetail() {
 }
 
 const s = StyleSheet.create({
-  intro: { gap: 8, marginBottom: 8 },
+  banner: {
+    borderRadius: radius.xl,
+    padding: space.xl,
+    gap: space.sm,
+    marginBottom: space.sm,
+  },
+  bannerIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.md,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  bannerTitle: { ...type.h2, fontFamily: fonts.display, color: colors.white },
+  bannerDesc: { fontFamily: fonts.body, fontSize: 14, lineHeight: 21, color: 'rgba(255,255,255,0.85)' },
 });
