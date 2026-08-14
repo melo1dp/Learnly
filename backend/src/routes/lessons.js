@@ -2,13 +2,17 @@ import { Router } from 'express';
 import pool from '../db/connection.js';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { intParam } from '../middleware/validate.js';
 
 const router = Router();
+
+const VALID_DIFFICULTIES = ['easy', 'medium', 'hard'];
 
 // GET /api/lessons/:id — a single lesson plus its quiz id (no answers leaked)
 router.get(
   '/:id',
   requireAuth,
+  intParam('id'),
   asyncHandler(async (req, res) => {
     const lessonResult = await pool.query('SELECT * FROM lessons WHERE id = $1', [
       req.params.id,
@@ -37,6 +41,25 @@ router.post(
       return res.status(400).json({ error: 'course_id, title and topic are required' });
     }
 
+    const courseId = Number(course_id);
+    if (!Number.isSafeInteger(courseId) || courseId < 1) {
+      return res.status(400).json({ error: 'course_id must be a valid id' });
+    }
+
+    // The course had to exist for the foreign key to hold anyway; checking here
+    // turns a raw FK-violation 500 into a message the authoring form can show.
+    const course = (
+      await pool.query('SELECT id FROM courses WHERE id = $1', [courseId])
+    ).rows[0];
+    if (!course) return res.status(404).json({ error: 'Course not found' });
+
+    const wantedDifficulty = difficulty || 'medium';
+    if (!VALID_DIFFICULTIES.includes(wantedDifficulty)) {
+      return res
+        .status(400)
+        .json({ error: `difficulty must be one of: ${VALID_DIFFICULTIES.join(', ')}` });
+    }
+
     // Validate any provided questions before touching the database.
     const cleanQuestions = Array.isArray(questions) ? questions : [];
     for (const [i, q] of cleanQuestions.entries()) {
@@ -54,11 +77,28 @@ router.post(
     try {
       await client.query('BEGIN');
 
+      // Default to appending, not to 0. `position` orders lessons within a
+      // course and the engine's "advance to the next topic" rule reads it, so
+      // defaulting every authored lesson to 0 would pile them all in front of
+      // the seeded curriculum and break the contiguous-topic-block invariant
+      // that content/schema.js goes to some trouble to guarantee.
+      const explicitPosition = Number(position);
+      const nextPosition = Number.isSafeInteger(explicitPosition) && explicitPosition >= 0
+        ? explicitPosition
+        : Number(
+            (
+              await client.query(
+                'SELECT COALESCE(MAX(position), -1) + 1 AS next FROM lessons WHERE course_id = $1',
+                [courseId],
+              )
+            ).rows[0].next,
+          );
+
       lessonId = (
         await client.query(
           `INSERT INTO lessons (course_id, title, body, topic, difficulty, position)
            VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-          [course_id, title, body || '', topic, difficulty || 'medium', position || 0],
+          [courseId, title, body || '', topic, wantedDifficulty, nextPosition],
         )
       ).rows[0].id;
 
