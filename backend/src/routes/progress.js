@@ -10,9 +10,11 @@ router.get(
   '/',
   requireAuth,
   asyncHandler(async (req, res) => {
+    // course_id is part of the key: topic names repeat across courses, so the
+    // client needs both to match a mastery row to the course it belongs to.
     const mastery = (
       await pool.query(
-        `SELECT topic, mastery_level, status, updated_at
+        `SELECT course_id, topic, mastery_level, status, updated_at
            FROM learner_progress
           WHERE user_id = $1
           ORDER BY updated_at DESC`,
@@ -48,16 +50,43 @@ router.get(
       )
     ).rows;
 
-    // Latest recommendation with a concrete next lesson → Continue learning card.
-    const latest = recommendations.find((r) => r.next_lesson_id);
-    const continueLearning = latest
+    // Latest recommendation whose next lesson the learner has NOT since
+    // completed → Continue learning card.
+    //
+    // Scanning the 20-row window above for the first row with a next_lesson_id
+    // had two failure modes: it kept pointing at a lesson the learner had
+    // already finished, and it vanished entirely once 20 newer no-next-lesson
+    // recommendations pushed the last useful one out of the window. Asking the
+    // database directly avoids both.
+    const continueRow = (
+      await pool.query(
+        `SELECT r.outcome, r.reason, r.next_lesson_id,
+                nl.title AS next_lesson_title, nl.difficulty AS next_lesson_difficulty
+           FROM recommendations r
+           JOIN lessons nl ON nl.id = r.next_lesson_id
+          WHERE r.user_id = $1
+            AND r.next_lesson_id IS NOT NULL
+            AND NOT EXISTS (
+              SELECT 1
+                FROM quizzes q
+                JOIN attempts a ON a.quiz_id = q.id
+               WHERE q.lesson_id = r.next_lesson_id
+                 AND a.user_id = $1
+            )
+          ORDER BY r.created_at DESC
+          LIMIT 1`,
+        [req.user.id],
+      )
+    ).rows[0];
+
+    const continueLearning = continueRow
       ? {
-          outcome: latest.outcome,
-          reason: latest.reason,
+          outcome: continueRow.outcome,
+          reason: continueRow.reason,
           nextLesson: {
-            id: latest.next_lesson_id,
-            title: latest.next_lesson_title,
-            difficulty: latest.next_lesson_difficulty,
+            id: continueRow.next_lesson_id,
+            title: continueRow.next_lesson_title,
+            difficulty: continueRow.next_lesson_difficulty,
           },
         }
       : null;

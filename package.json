@@ -14,6 +14,7 @@
     "dev": "concurrently -n backend,mobile -c blue,green \"npm run dev -w backend\" \"npm run start -w mobile\"",
     "dev:web": "concurrently -n backend,web -c blue,magenta \"npm run dev -w backend\" \"npm run web -w mobile\"",
     "dev:backend": "npm run dev -w backend",
+    "test": "npm test -w backend",
     "dev:mobile": "npm run start -w mobile",
     "dev:web-only": "npm run web -w mobile",
     "ios": "npm run ios -w mobile",

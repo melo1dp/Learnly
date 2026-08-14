@@ -2,14 +2,29 @@ import { Router } from 'express';
 import pool from '../db/connection.js';
 import { requireAuth } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/asyncHandler.js';
+import { intParam } from '../middleware/validate.js';
 import { adaptAfterQuiz } from '../engine/adaptation.js';
 
 const router = Router();
+
+/**
+ * Read a submitted answer as an option index.
+ *
+ * Only real integers and their string forms count. A bare `Number()` would
+ * grade `true` as index 1 and `null` as index 0, letting a malformed body score
+ * points by accident.
+ */
+function parseChoice(raw) {
+  if (typeof raw === 'number') return Number.isInteger(raw) ? raw : Number.NaN;
+  if (typeof raw === 'string' && /^[0-9]+$/.test(raw.trim())) return Number(raw.trim());
+  return Number.NaN;
+}
 
 // GET /api/quizzes/:id — quiz questions WITHOUT the correct answers.
 router.get(
   '/:id',
   requireAuth,
+  intParam('id'),
   asyncHandler(async (req, res) => {
     const quizResult = await pool.query('SELECT * FROM quizzes WHERE id = $1', [
       req.params.id,
@@ -32,54 +47,82 @@ router.get(
 router.post(
   '/:id/submit',
   requireAuth,
+  intParam('id'),
   asyncHandler(async (req, res) => {
-    const quizResult = await pool.query('SELECT * FROM quizzes WHERE id = $1', [
-      req.params.id,
-    ]);
-    const quiz = quizResult.rows[0];
-    if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
-
     const answers = (req.body && req.body.answers) || {};
-    const questions = (
-      await pool.query('SELECT * FROM questions WHERE quiz_id = $1', [quiz.id])
-    ).rows;
-    if (questions.length === 0) return res.status(400).json({ error: 'Quiz has no questions' });
+    if (typeof answers !== 'object' || Array.isArray(answers)) {
+      return res.status(400).json({ error: 'answers must be an object' });
+    }
 
-    // --- Grade ---
-    let correct = 0;
-    const perQuestion = questions.map((q) => {
-      const chosen = Number(answers[q.id]);
-      const isCorrect = chosen === q.correct_index;
-      if (isCorrect) correct += 1;
-      return {
-        questionId: q.id,
-        text: q.text,
-        options: q.options,
-        chosen,
-        correct_index: q.correct_index,
-        isCorrect,
-        explanation: q.explanation,
+    // Grading, recording the attempt and running the engine happen in one
+    // transaction. Previously the attempt was committed before adaptation ran,
+    // so an engine failure left the learner looking at a 500 for a quiz that had
+    // in fact been recorded — and the mastery row it should have updated was
+    // left behind. All of it lands, or none of it does.
+    const client = await pool.connect();
+    let payload;
+    try {
+      await client.query('BEGIN');
+
+      const quiz = (
+        await client.query('SELECT * FROM quizzes WHERE id = $1', [req.params.id])
+      ).rows[0];
+      if (!quiz) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Quiz not found' });
+      }
+
+      const questions = (
+        await client.query('SELECT * FROM questions WHERE quiz_id = $1 ORDER BY id', [quiz.id])
+      ).rows;
+      if (questions.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Quiz has no questions' });
+      }
+
+      // --- Grade ---
+      let correct = 0;
+      const perQuestion = questions.map((q) => {
+        const chosen = parseChoice(answers[q.id]);
+        const isCorrect = chosen === q.correct_index;
+        if (isCorrect) correct += 1;
+        return {
+          questionId: q.id,
+          text: q.text,
+          options: q.options,
+          chosen: Number.isNaN(chosen) ? null : chosen,
+          correct_index: q.correct_index,
+          isCorrect,
+          explanation: q.explanation,
+        };
+      });
+      const score = Math.round((correct / questions.length) * 100);
+
+      // --- Record the attempt ---
+      await client.query(
+        'INSERT INTO attempts (user_id, quiz_id, score) VALUES ($1, $2, $3)',
+        [req.user.id, quiz.id, score],
+      );
+
+      // --- Run the adaptation engine (the star of the show) ---
+      const adaptation = await adaptAfterQuiz(req.user.id, quiz.lesson_id, score, client);
+
+      await client.query('COMMIT');
+      payload = {
+        score,
+        correct,
+        total: questions.length,
+        perQuestion,
+        adaptation, // { outcome, mastery, status, reason, nextLesson }
       };
-    });
-    const score = Math.round((correct / questions.length) * 100);
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
 
-    // --- Record the attempt ---
-    await pool.query('INSERT INTO attempts (user_id, quiz_id, score) VALUES ($1, $2, $3)', [
-      req.user.id,
-      quiz.id,
-      score,
-    ]);
-
-    // --- Run the adaptation engine (the star of the show) ---
-    const adaptation = await adaptAfterQuiz(req.user.id, quiz.lesson_id, score);
-
-    res.json({
-      score,
-      correct,
-      total: questions.length,
-      perQuestion,
-      adaptation, // { outcome, mastery, status, reason, nextLesson }
-    });
+    res.json(payload);
   }),
 );
 
