@@ -27,6 +27,7 @@ export default function CourseDetail() {
   // it and reads .length and .map directly — one malformed response would be a
   // blank screen rather than a degraded one.
   const lessons = course.lessons || [];
+  const done = course.completedCount ?? lessons.filter((l) => l.completed).length;
 
   return (
     <>
@@ -70,7 +71,11 @@ export default function CourseDetail() {
 
         <SectionHeader
           title="Lessons"
-          subtitle={`${lessons.length} in this course · difficulty tags feed the adaptation engine`}
+          subtitle={
+            done > 0
+              ? `${done} of ${lessons.length} completed · difficulty tags feed the adaptation engine`
+              : `${lessons.length} in this course · difficulty tags feed the adaptation engine`
+          }
         />
 
         {lessons.length === 0 && (
@@ -84,6 +89,8 @@ export default function CourseDetail() {
             title={lesson.title}
             topic={lesson.topic}
             difficulty={lesson.difficulty}
+            completed={lesson.completed}
+            bestScore={lesson.best_score}
             onPress={() => router.push(`/lessons/${lesson.id}`)}
           />
         ))}

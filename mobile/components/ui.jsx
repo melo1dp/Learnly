@@ -184,22 +184,20 @@ export function CourseTile({
           },
         ]}
       >
+        {/* Horizontal, not a 100px artwork banner stacked above the text. The
+            banner pushed the title of every card to the fold, so the catalogue
+            showed barely one course per screen. The identity colour still
+            carries — as a rail and an icon tile rather than a block. */}
+        <View style={[s.courseRail, { backgroundColor: stripe }]} />
+
         <View style={s.courseThumb}>
           <LinearGradient
             colors={[shadeColor(stripe, 14), shadeColor(stripe, -30)]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
-            style={StyleSheet.absoluteFill}
+            style={[StyleSheet.absoluteFill, { borderRadius: radius.md }]}
           />
-          <Ionicons
-            name={icon}
-            size={84}
-            color="rgba(255,255,255,0.14)"
-            style={s.courseThumbGhost}
-          />
-          <View style={s.courseThumbBadge}>
-            <Ionicons name={icon} size={20} color={colors.white} />
-          </View>
+          <Ionicons name={icon} size={24} color={colors.white} />
         </View>
 
         <View style={s.courseCardBody}>
@@ -213,8 +211,8 @@ export function CourseTile({
           ) : null}
 
           <View style={s.courseTags}>
-            {category ? <Pill label={category} /> : null}
             {level ? <Pill label={level} tone={LEVEL_TONE[level]} /> : null}
+            {category ? <Text style={s.courseCategory}>{category}</Text> : null}
             {rating != null ? (
               <View style={s.ratingChip}>
                 <Ionicons name="star" size={11} color={colors.accent} />
@@ -242,19 +240,37 @@ export function CourseTile({
   );
 }
 
-export function LessonRow({ index, title, topic, difficulty, onPress }) {
+export function LessonRow({ index, title, topic, difficulty, completed, bestScore, onPress }) {
   const { scale, pressIn, pressOut } = usePressScale();
   return (
-    <Pressable onPress={onPress} onPressIn={pressIn} onPressOut={pressOut}>
+    <Pressable
+      onPress={onPress}
+      onPressIn={pressIn}
+      onPressOut={pressOut}
+      accessibilityRole="button"
+      // Completion is shown with a tick *and* stated here, because a colour
+      // and a glyph alone say nothing to a screen reader.
+      accessibilityLabel={
+        `Lesson ${index}: ${title}, ${difficulty}, topic ${topic}. ` +
+        (completed ? `Completed, best score ${bestScore} percent.` : 'Not started.')
+      }
+    >
       <Animated.View style={[s.lessonRow, { transform: [{ scale }] }]}>
-        <View style={s.lessonNum}>
-          <Text style={s.lessonNumText}>{index}</Text>
+        <View style={[s.lessonNum, completed && s.lessonNumDone]}>
+          {completed ? (
+            <Ionicons name="checkmark" size={18} color={colors.bg} />
+          ) : (
+            <Text style={s.lessonNumText}>{index}</Text>
+          )}
         </View>
         <View style={s.lessonBody}>
           <Text style={s.lessonTitle} numberOfLines={2}>
             {title}
           </Text>
-          <Text style={s.lessonMeta}>Topic · {topic}</Text>
+          <Text style={s.lessonMeta}>
+            Topic · {topic}
+            {completed ? ` · best ${bestScore}%` : ''}
+          </Text>
         </View>
         <Pill label={difficulty} tone={difficulty} />
       </Animated.View>
@@ -554,6 +570,54 @@ export function Option({ label, selected, onPress }) {
   );
 }
 
+/**
+ * Per-question review: the correct answer, what the learner chose, and why.
+ *
+ * Shared by the post-submit result screen and the attempt-history screen, which
+ * must show the same thing — this used to live inline in the quiz screen, which
+ * is precisely why a completed attempt could never be looked at again.
+ */
+export function AnswerReview({ perQuestion = [] }) {
+  return perQuestion.map((q, i) => {
+    const skipped = q.chosen == null;
+    return (
+      <Card key={q.questionId}>
+        <Row>
+          <Text style={s.reviewIndex}>Question {i + 1}</Text>
+          <Pill
+            label={q.isCorrect ? 'Correct' : skipped ? 'Skipped' : 'Incorrect'}
+            tone={q.isCorrect ? 'mastered' : 'struggling'}
+          />
+        </Row>
+        <Text style={s.reviewQuestion}>{q.text}</Text>
+        <View style={s.reviewOptions}>
+          {(q.options || []).map((opt, idx) => (
+            <View
+              key={idx}
+              style={[
+                s.reviewOption,
+                idx === q.correct_index && s.reviewOptionCorrect,
+                idx === q.chosen && idx !== q.correct_index && s.reviewOptionWrong,
+              ]}
+            >
+              <Text style={s.reviewOptionText}>{opt}</Text>
+              {idx === q.correct_index ? <Text style={s.reviewTag}>Correct answer</Text> : null}
+              {idx === q.chosen && idx !== q.correct_index ? (
+                <Text style={s.reviewTagWrong}>Your answer</Text>
+              ) : null}
+            </View>
+          ))}
+        </View>
+        {/* Falling through to nothing when an instructor left the explanation
+            blank made the wrong answer feel arbitrary. */}
+        <Text style={s.reviewExplanation}>
+          {q.explanation || 'No explanation was provided for this question.'}
+        </Text>
+      </Card>
+    );
+  });
+}
+
 export function Banner({ outcome, children }) {
   const tint = outcomeColor[outcome] ?? colors.border;
   return (
@@ -689,6 +753,11 @@ const s = StyleSheet.create({
   emptyTitle: { ...type.h3, color: colors.ink },
 
   courseCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: space.md,
+    padding: space.lg,
+    paddingLeft: space.lg + 4,
     backgroundColor: colors.panel,
     borderRadius: radius.lg,
     borderWidth: 1,
@@ -696,28 +765,17 @@ const s = StyleSheet.create({
     overflow: 'hidden',
     ...shadow.soft,
   },
+  courseRail: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4 },
   courseThumb: {
-    height: 100,
-    alignItems: 'flex-start',
-    justifyContent: 'flex-end',
-    padding: space.md,
-    overflow: 'hidden',
-  },
-  courseThumbGhost: {
-    position: 'absolute',
-    top: -16,
-    right: -14,
-    transform: [{ rotate: '-16deg' }],
-  },
-  courseThumbBadge: {
-    width: 40,
-    height: 40,
+    width: 48,
+    height: 48,
     borderRadius: radius.md,
-    backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
   },
-  courseCardBody: { padding: space.lg, gap: 6 },
+  courseCardBody: { flex: 1, gap: 5 },
+  courseCategory: { ...type.caption, color: colors.muted },
   courseTitle: { ...type.h3, color: colors.ink },
   courseDesc: { ...type.caption, color: colors.muted },
   courseTags: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.xs, marginTop: 2 },
@@ -753,6 +811,55 @@ const s = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  reviewIndex: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 12,
+    letterSpacing: 0.6,
+    textTransform: 'uppercase',
+    color: colors.muted,
+  },
+  reviewQuestion: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 16,
+    lineHeight: 24,
+    color: colors.ink,
+    marginBottom: space.sm,
+  },
+  reviewOptions: { gap: space.sm },
+  reviewOption: {
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.panel2,
+    borderRadius: radius.md,
+    padding: 12,
+    gap: 2,
+  },
+  reviewOptionCorrect: { borderColor: colors.good, backgroundColor: `${colors.good}14` },
+  reviewOptionWrong: { borderColor: colors.bad, backgroundColor: `${colors.bad}14` },
+  reviewOptionText: { fontFamily: fonts.bodyMedium, fontSize: 15, color: colors.ink },
+  reviewTag: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 12,
+    color: colors.good,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  reviewTagWrong: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 12,
+    color: colors.bad,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  reviewExplanation: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    lineHeight: 21,
+    color: colors.muted,
+    marginTop: space.xs,
+  },
+
+  lessonNumDone: { backgroundColor: colors.good },
   lessonNumText: { fontFamily: fonts.bodyBold, fontSize: 14, color: colors.accent },
   lessonBody: { flex: 1, gap: 2 },
   lessonTitle: { ...type.h3, color: colors.ink },

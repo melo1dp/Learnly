@@ -72,6 +72,7 @@ function RootNavigator({ fontsReady }) {
       <Stack.Screen name="courses/[id]/lessons/new" options={{ title: 'New lesson' }} />
       <Stack.Screen name="lessons/[id]" options={{ title: 'Lesson' }} />
       <Stack.Screen name="quizzes/[id]" options={{ title: 'Quiz' }} />
+      <Stack.Screen name="attempts/[id]" options={{ title: 'Attempt review' }} />
     </Stack>
   );
 }

@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
+import Ionicons from '@expo/vector-icons/Ionicons';
 import { useApi } from '../../lib/useApi';
 import {
   computeStreak,
@@ -164,20 +165,36 @@ export default function Dashboard() {
           </Pressable>
         ))}
 
-        <SectionHeader title="Recent quiz attempts" />
+        <SectionHeader
+          title="Recent quiz attempts"
+          subtitle={data.attempts.length ? 'Tap one to review your answers.' : undefined}
+        />
         {data.attempts.length === 0 && <EmptyState title="No attempts yet" />}
+        {/* These were inert Views. The per-question review already existed but
+            was only ever reachable in the seconds after submitting. */}
         {data.attempts.map((a) => (
-          <View key={a.id} style={s.card}>
-            <Row>
-              <View style={s.attempt}>
-                <Text style={s.attemptTitle}>{a.lesson_title}</Text>
-                <Text style={s.meta}>
-                  {a.topic} · {formatWhen(a.taken_at)}
-                </Text>
-              </View>
-              <Pill label={`${a.score}%`} />
-            </Row>
-          </View>
+          <Pressable
+            key={a.id}
+            onPress={() => router.push(`/attempts/${a.id}`)}
+            accessibilityRole="button"
+            accessibilityLabel={`Review ${a.lesson_title}, scored ${a.score} percent`}
+            style={({ pressed }) => [pressed && { opacity: 0.85 }]}
+          >
+            <View style={s.card}>
+              <Row>
+                <View style={s.attempt}>
+                  <Text style={s.attemptTitle}>{a.lesson_title}</Text>
+                  <Text style={s.meta}>
+                    {a.topic} · {formatWhen(a.taken_at)}
+                  </Text>
+                </View>
+                <Row style={s.attemptRight}>
+                  <Pill label={`${a.score}%`} />
+                  <Ionicons name="chevron-forward" size={16} color={colors.muted} />
+                </Row>
+              </Row>
+            </View>
+          </Pressable>
         ))}
       </ScrollView>
     </View>
@@ -201,6 +218,7 @@ const s = StyleSheet.create({
   },
   meta: { fontFamily: fonts.body, fontSize: 13, color: colors.muted },
   attempt: { flex: 1, gap: 2 },
+  attemptRight: { gap: space.xs, flexShrink: 0 },
   attemptTitle: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.ink },
   outcome: {
     fontFamily: fonts.bodyBold,
