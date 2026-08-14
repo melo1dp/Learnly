@@ -106,8 +106,12 @@ export function RingMeter({ value, size = 96, strokeWidth = 10, label, sublabel 
           strokeDasharray={`${circumference} ${circumference}`}
           strokeDashoffset={dashOffset}
           strokeLinecap="round"
-          rotation="-90"
-          origin={`${size / 2}, ${size / 2}`}
+          // An SVG transform string rather than react-native-svg's
+          // rotation/origin props: on web those become a `transform-origin`
+          // DOM attribute, which React rejects — it surfaced as a red
+          // "Invalid DOM property" overlay across the profile screen. This
+          // form is valid SVG and behaves identically on native.
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
         />
       </Svg>
       <View style={s.ringCenter}>

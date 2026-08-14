@@ -93,8 +93,13 @@ export default function Quiz() {
     <>
       <Stack.Screen options={{ title: quiz.title }} />
       <Screen>
-        <H1>{quiz.title}</H1>
-        <Muted>Answer every question — your score steers the next lesson.</Muted>
+        {/* The navigation header already shows the title; repeating it as an
+            H1 spent a quarter of the first screen saying the same thing twice
+            — on a screen whose whole job is getting through the questions. */}
+        <Muted>
+          {questions.length} question{questions.length === 1 ? '' : 's'} · your score steers
+          the next lesson.
+        </Muted>
 
         {questions.map((q, i) => {
           const unanswered = answers[q.id] === undefined;

@@ -32,7 +32,7 @@ import {
  *  is the practical substitute. */
 export function MeshBackdrop() {
   return (
-    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+    <View style={[StyleSheet.absoluteFill, { pointerEvents: 'none' }]}>
       <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.bg }]} />
       <View style={s.meshBlobAmber} />
       <View style={s.meshBlobViolet} />
@@ -321,7 +321,7 @@ export function ScoreHero({ score, correct, total }) {
   return (
     <View style={s.scoreHero}>
       {celebrate ? (
-        <View style={s.burstWrap} pointerEvents="none">
+        <View style={[s.burstWrap, { pointerEvents: 'none' }]}>
           {Array.from({ length: BURST_DOTS }).map((_, i) => {
             const angle = (i / BURST_DOTS) * Math.PI * 2;
             const distance = 70;
@@ -478,7 +478,12 @@ export function Pill({ label, tone }) {
         tint && { borderColor: tint, backgroundColor: `${tint}18` },
       ]}
     >
-      <Text style={[s.pillText, tint && { color: tint }]}>{label}</Text>
+      {/* Only taxonomy values (difficulty, outcome — the ones that arrive from
+          the database lowercase) get title-cased. Applying it to every pill
+          turned free text into "Member Since Aug 2026". */}
+      <Text style={[s.pillText, tint && s.pillTextTaxonomy, tint && { color: tint }]}>
+        {label}
+      </Text>
     </View>
   );
 }
@@ -907,8 +912,8 @@ const s = StyleSheet.create({
     fontFamily: fonts.bodySemi,
     fontSize: 11,
     color: colors.muted,
-    textTransform: 'capitalize',
   },
+  pillTextTaxonomy: { textTransform: 'capitalize' },
 
   masteryChart: { gap: space.lg },
   masteryRow: { gap: space.xs },

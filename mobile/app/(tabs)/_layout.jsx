@@ -1,8 +1,16 @@
 import { Tabs } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { colors, fonts } from '../../lib/theme';
 
+// Room for a 24px icon, its 12px label and the padding around both. Measured
+// rather than guessed: at 58 the label descenders were still being clipped by
+// the bar, and at React Navigation's inset-less default they were cut in half.
+const TAB_BAR_CONTENT_HEIGHT = 70;
+
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tabs
       screenOptions={{
@@ -10,13 +18,15 @@ export default function TabsLayout() {
         headerShadowVisible: false,
         headerTintColor: colors.ink,
         headerTitleStyle: { color: colors.ink, fontFamily: fonts.bodySemi, fontSize: 17 },
-        // No explicit `height`. Setting one overrides React Navigation's
-        // inset-aware default (49 + the bottom safe-area inset, ~83 on a notched
-        // iPhone), which pushed the labels onto the home indicator.
+        // Height is derived from the inset rather than hardcoded: a flat 60
+        // put the labels under the home indicator on a notched phone, and
+        // removing it entirely clipped them everywhere the inset is zero.
         tabBarStyle: {
           backgroundColor: colors.panel,
           borderTopColor: colors.border,
+          height: TAB_BAR_CONTENT_HEIGHT + insets.bottom,
           paddingTop: 6,
+          paddingBottom: insets.bottom + 6,
         },
         tabBarActiveTintColor: colors.accent,
         tabBarInactiveTintColor: colors.muted,

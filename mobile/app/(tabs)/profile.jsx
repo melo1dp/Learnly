@@ -74,7 +74,7 @@ export default function Profile() {
           <Text style={s.name}>{user?.name}</Text>
           <Text style={s.email}>{user?.email}</Text>
           <Row style={s.badgeRow}>
-            <Pill label={user?.role} />
+            <Pill label={user?.role ? user.role[0].toUpperCase() + user.role.slice(1) : ''} />
             {user?.created_at ? (
               <Pill
                 label={`Member since ${new Date(user.created_at).toLocaleDateString(undefined, {

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { View } from 'react-native';
 import { Stack, useRouter, useSegments } from 'expo-router';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import { Fraunces_600SemiBold } from '@expo-google-fonts/fraunces/600SemiBold';
@@ -87,10 +88,16 @@ export default function RootLayout() {
     DMMono_500Medium,
   });
 
+  // Without SafeAreaProvider, useSafeAreaInsets() reports zero everywhere and
+  // React Navigation's tab bar falls back to an inset-less height — which
+  // clipped the tab labels. It is also what keeps the two headerShown:false
+  // screens (login, welcome) out from under the notch.
   return (
-    <AuthProvider>
-      <StatusBar style="light" />
-      <RootNavigator fontsReady={fontsLoaded} />
-    </AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
+        <StatusBar style="light" />
+        <RootNavigator fontsReady={fontsLoaded} />
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }

@@ -62,7 +62,9 @@ export default function Lesson() {
           <Text style={s.bannerTitle}>{lesson.title}</Text>
           <View style={s.bannerMeta}>
             <Pill label={lesson.difficulty} tone={lesson.difficulty} />
-            <Text style={s.bannerMetaText}>Topic · {lesson.topic}</Text>
+            {/* Capitalisation is scoped to the topic; applied to the row it
+                also title-cased the reading time into "2 Min Read". */}
+            <Text style={[s.bannerMetaText, s.bannerMetaTopic]}>Topic · {lesson.topic}</Text>
             <Text style={s.bannerMetaText}>{mins} min read</Text>
           </View>
         </View>
@@ -143,8 +145,8 @@ const s = StyleSheet.create({
     fontFamily: fonts.bodyMedium,
     fontSize: 13,
     color: colors.muted,
-    textTransform: 'capitalize',
   },
+  bannerMetaTopic: { textTransform: 'capitalize' },
 
   readCard: { paddingVertical: space.xl },
   paragraph: { ...type.bodyLg, color: colors.ink },

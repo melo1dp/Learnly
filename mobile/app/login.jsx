@@ -64,8 +64,7 @@ export default function Login() {
           <View style={s.heroWrap}>
             <LinearGradient
               colors={[`${colors.accent}30`, `${colors.accent}00`]}
-              style={s.heroBlob}
-              pointerEvents="none"
+              style={[s.heroBlob, { pointerEvents: 'none' }]}
             />
             <BrandMark subtitle="Sign in to continue your adaptive study plan." />
           </View>

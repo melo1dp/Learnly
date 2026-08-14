@@ -152,18 +152,14 @@ export default function Courses() {
             </View>
             <View style={s.progressCard}>
               <Text style={s.progressTitle}>Learning snapshot</Text>
+              {/* One line, not two. With no attempts yet the body already said
+                  "take your first quiz" and the hint repeated it verbatim. */}
               <Text style={s.progressBody}>{progressSummary}</Text>
-              {/* When there IS a recommendation the ContinueCard below says so
-                  in full; repeating the lesson title here just duplicated it. */}
               {progressError ? (
                 <Pressable onPress={reloadProgress} hitSlop={8}>
                   <Text style={s.progressHint}>Tap to retry</Text>
                 </Pressable>
-              ) : continueRec?.nextLesson ? null : (
-                <Text style={s.progressHint}>
-                  Take a quiz to unlock your next recommendation.
-                </Text>
-              )}
+              ) : null}
             </View>
             {continueRec?.nextLesson ? (
               <ContinueCard
