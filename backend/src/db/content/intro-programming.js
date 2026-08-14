@@ -2,6 +2,9 @@
 export default {
   title: 'Intro to Programming',
   description: 'Learn the fundamentals of programming, from variables to functions.',
+  category: 'Computing',
+  level: 'beginner',
+  rating: 4.6,
   topics: [
     {
       topic: 'variables',

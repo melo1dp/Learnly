@@ -1,7 +1,8 @@
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useApi } from '../../lib/useApi';
+import { attemptsInLastDays, computeStreak, courseCompletion, dailyAttemptCounts, masteryByCategory } from '../../lib/stats';
+import { ActivityAreaChart, CategoryMasteryChart, RingMeter } from '../../components/charts';
 import {
   Banner,
   Card,
@@ -10,6 +11,7 @@ import {
   ErrorScreen,
   Loading,
   MasteryChart,
+  MeshBackdrop,
   Pill,
   Row,
   SectionHeader,
@@ -17,26 +19,32 @@ import {
 } from '../../components/ui';
 import { colors, fonts, space, type } from '../../lib/theme';
 
+const WEEKLY_GOAL = 5;
+
 export default function Dashboard() {
   const router = useRouter();
   const { data, error, refreshing, refresh } = useApi('/progress');
+  const { data: courses } = useApi('/courses');
 
   if (error) return <ErrorScreen message={error} />;
   if (!data) return <Loading />;
 
   const continueRec = data.continueLearning;
-  const masteredCount = (data.mastery || []).filter((m) => m.status === 'mastered').length;
+  const mastery = data.mastery || [];
+  const masteredCount = mastery.filter((m) => m.status === 'mastered').length;
   const averageScore = data.attempts.length
     ? Math.round(data.attempts.reduce((sum, a) => sum + a.score, 0) / data.attempts.length)
     : 0;
+  const streak = computeStreak(data.attempts);
+  const weeklyActivity = dailyAttemptCounts(data.attempts, 7);
+  const categoryData = masteryByCategory(courses || [], mastery);
+  const startedCourses = (courses || []).filter(
+    (c) => courseCompletion(c, mastery).status !== 'not_started',
+  );
 
   return (
     <View style={s.root}>
-      <LinearGradient
-        colors={[colors.bgWash, colors.bg, colors.bg]}
-        locations={[0, 0.28, 1]}
-        style={StyleSheet.absoluteFill}
-      />
+      <MeshBackdrop />
       <ScrollView
         style={s.screen}
         contentContainerStyle={s.content}
@@ -50,7 +58,10 @@ export default function Dashboard() {
         <Row style={s.statRow}>
           <StatTile label="Quiz attempts" value={data.attempts.length} />
           <StatTile label="Mastered topics" value={masteredCount} />
+        </Row>
+        <Row style={s.statRow}>
           <StatTile label="Average score" value={`${averageScore}%`} />
+          <StatTile label="Day streak" value={streak} />
         </Row>
 
         {continueRec?.nextLesson ? (
@@ -62,12 +73,45 @@ export default function Dashboard() {
           />
         ) : null}
 
+        <SectionHeader title="This week" subtitle="Quiz attempts over the last 7 days." />
+        <Card>
+          <ActivityAreaChart data={weeklyActivity} />
+        </Card>
+
+        {categoryData.length > 0 ? (
+          <>
+            <SectionHeader title="Mastery by category" subtitle="Average mastery across each subject area." />
+            <Card>
+              <CategoryMasteryChart data={categoryData} />
+            </Card>
+          </>
+        ) : null}
+
+        {startedCourses.length > 0 ? (
+          <>
+            <SectionHeader title="Course completion" subtitle="Share of each course's topics you've mastered." />
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.ringScroll}>
+              {startedCourses.map((c) => {
+                const { pct } = courseCompletion(c, mastery);
+                return (
+                  <View key={c.id} style={s.ringItem}>
+                    <RingMeter value={pct} size={84} strokeWidth={8} />
+                    <Text style={s.ringLabel} numberOfLines={2}>
+                      {c.title}
+                    </Text>
+                  </View>
+                );
+              })}
+            </ScrollView>
+          </>
+        ) : null}
+
         <SectionHeader title="Mastery by topic" subtitle="Nudged up or down after each quiz." />
-        {data.mastery.length === 0 ? (
+        {mastery.length === 0 ? (
           <EmptyState title="No mastery yet" body="Take a quiz to start building your profile." />
         ) : (
           <Card>
-            <MasteryChart data={data.mastery} />
+            <MasteryChart data={mastery} />
           </Card>
         )}
 
@@ -129,7 +173,7 @@ const s = StyleSheet.create({
   content: { padding: space.xl, paddingBottom: 56, gap: space.md },
   title: { ...type.h1, color: colors.ink },
   lede: { ...type.body, color: colors.muted, marginBottom: space.sm },
-  statRow: { gap: space.sm, marginBottom: space.sm },
+  statRow: { gap: space.sm },
   card: {
     backgroundColor: colors.panel,
     borderRadius: 18,
@@ -150,4 +194,8 @@ const s = StyleSheet.create({
   scoreChip: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.muted },
   reason: { fontFamily: fonts.body, fontSize: 14, lineHeight: 21, color: colors.ink },
   nextHint: { fontFamily: fonts.bodyMedium, fontSize: 13, color: colors.muted, marginTop: 2 },
+
+  ringScroll: { marginBottom: space.sm },
+  ringItem: { alignItems: 'center', width: 100, gap: space.xs, marginRight: space.md },
+  ringLabel: { fontFamily: fonts.bodyMedium, fontSize: 12, color: colors.muted, textAlign: 'center' },
 });

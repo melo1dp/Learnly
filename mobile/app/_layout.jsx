@@ -5,10 +5,12 @@ import { StatusBar } from 'expo-status-bar';
 import { useFonts } from 'expo-font';
 import { Fraunces_600SemiBold } from '@expo-google-fonts/fraunces/600SemiBold';
 import { Fraunces_700Bold } from '@expo-google-fonts/fraunces/700Bold';
-import { Manrope_400Regular } from '@expo-google-fonts/manrope/400Regular';
-import { Manrope_500Medium } from '@expo-google-fonts/manrope/500Medium';
-import { Manrope_600SemiBold } from '@expo-google-fonts/manrope/600SemiBold';
-import { Manrope_700Bold } from '@expo-google-fonts/manrope/700Bold';
+import { PlusJakartaSans_400Regular } from '@expo-google-fonts/plus-jakarta-sans/400Regular';
+import { PlusJakartaSans_500Medium } from '@expo-google-fonts/plus-jakarta-sans/500Medium';
+import { PlusJakartaSans_600SemiBold } from '@expo-google-fonts/plus-jakarta-sans/600SemiBold';
+import { PlusJakartaSans_700Bold } from '@expo-google-fonts/plus-jakarta-sans/700Bold';
+import { DMMono_400Regular } from '@expo-google-fonts/dm-mono/400Regular';
+import { DMMono_500Medium } from '@expo-google-fonts/dm-mono/500Medium';
 import { AuthProvider, useAuth } from '../lib/auth';
 import { Loading } from '../components/ui';
 import { colors, fonts } from '../lib/theme';
@@ -77,15 +79,17 @@ export default function RootLayout() {
   const [fontsLoaded] = useFonts({
     Fraunces_600SemiBold,
     Fraunces_700Bold,
-    Manrope_400Regular,
-    Manrope_500Medium,
-    Manrope_600SemiBold,
-    Manrope_700Bold,
+    PlusJakartaSans_400Regular,
+    PlusJakartaSans_500Medium,
+    PlusJakartaSans_600SemiBold,
+    PlusJakartaSans_700Bold,
+    DMMono_400Regular,
+    DMMono_500Medium,
   });
 
   return (
     <AuthProvider>
-      <StatusBar style="dark" />
+      <StatusBar style="light" />
       <RootNavigator fontsReady={fontsLoaded} />
     </AuthProvider>
   );

@@ -8,19 +8,29 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { Stack, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useApi } from "../../lib/useApi";
 import { useAuth } from "../../lib/auth";
+import { courseCompletion } from "../../lib/stats";
 import {
+  Choice,
   ContinueCard,
   CourseTile,
   EmptyState,
   ErrorScreen,
   Loading,
+  MeshBackdrop,
 } from "../../components/ui";
 import { colors, fonts, space, type } from "../../lib/theme";
+
+const FILTERS = [
+  { value: "all", label: "All" },
+  { value: "in_progress", label: "In Progress" },
+  { value: "completed", label: "Completed" },
+  { value: "beginner", label: "Beginner" },
+  { value: "advanced", label: "Advanced" },
+];
 
 export default function Courses() {
   const { user } = useAuth();
@@ -28,31 +38,33 @@ export default function Courses() {
   const { data: courses, error, refreshing, refresh } = useApi("/courses");
   const { data: progress } = useApi("/progress");
   const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState("all");
 
   if (error) return <ErrorScreen message={error} />;
   if (!courses) return <Loading />;
 
+  const mastery = progress?.mastery || [];
   const continueRec = progress?.continueLearning;
   const quizAttempts = progress?.attempts?.length || 0;
-  const masteredTopics = (progress?.mastery || []).filter(
-    (m) => m.status === "mastered",
-  ).length;
+  const masteredTopics = mastery.filter((m) => m.status === "mastered").length;
   const progressSummary =
     quizAttempts === 0
       ? "Take your first quiz to start building momentum."
       : `You’ve completed ${quizAttempts} quiz attempt${quizAttempts === 1 ? "" : "s"} and ${masteredTopics} mastered topic${masteredTopics === 1 ? "" : "s"}.`;
+
   const filteredCourses = (courses || []).filter((course) => {
     const text = `${course.title} ${course.description || ""}`.toLowerCase();
-    return text.includes(query.trim().toLowerCase());
+    if (!text.includes(query.trim().toLowerCase())) return false;
+
+    if (filter === "all") return true;
+    if (filter === "beginner" || filter === "advanced") return course.level === filter;
+    const { status } = courseCompletion(course, mastery);
+    return status === filter;
   });
 
   return (
     <View style={s.root}>
-      <LinearGradient
-        colors={[colors.bgWash, colors.bg, colors.bg]}
-        locations={[0, 0.28, 1]}
-        style={StyleSheet.absoluteFill}
-      />
+      <MeshBackdrop />
 
       {user?.role === "instructor" && (
         <Stack.Screen
@@ -139,6 +151,7 @@ export default function Courses() {
               />
             ) : null}
             <Text style={s.section}>Catalogue</Text>
+            <Choice value={filter} options={FILTERS} onChange={setFilter} style={s.filterRow} />
           </View>
         }
         ListEmptyComponent={
@@ -151,15 +164,22 @@ export default function Courses() {
             }
           />
         }
-        renderItem={({ item, index }) => (
-          <CourseTile
-            id={item.id}
-            title={item.title}
-            description={item.description}
-            index={index}
-            onPress={() => router.push(`/courses/${item.id}`)}
-          />
-        )}
+        renderItem={({ item, index }) => {
+          const { pct } = courseCompletion(item, mastery);
+          return (
+            <CourseTile
+              id={item.id}
+              title={item.title}
+              description={item.description}
+              category={item.category}
+              level={item.level}
+              rating={item.rating}
+              progress={pct}
+              index={index}
+              onPress={() => router.push(`/courses/${item.id}`)}
+            />
+          );
+        }}
       />
     </View>
   );
@@ -241,4 +261,5 @@ const s = StyleSheet.create({
     color: colors.muted,
     marginTop: space.md,
   },
+  filterRow: { marginTop: space.xs, marginBottom: 0 },
 });

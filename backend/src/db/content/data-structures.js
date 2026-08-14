@@ -2,6 +2,9 @@
 export default {
   title: 'Data Structures Essentials',
   description: 'A hands-on introduction to arrays, hash maps, and the running-time thinking that tells you which one to reach for.',
+  category: 'Computing',
+  level: 'advanced',
+  rating: 4.8,
   topics: [
     {
       topic: 'arrays',

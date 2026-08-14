@@ -1,21 +1,26 @@
-// Paper & Teal — light academic tokens for Learnly.
+// Deep Slate & Amber — dark academic tokens for Learnly.
+// Status colors (good/bad/brass) were re-validated with the dataviz skill's
+// palette validator against this surface; the red/green pairing is the one
+// pairing left in the 6-8 CVD floor band, acceptable only because every
+// status color in this app is always paired with a text label, never shown
+// as color alone (Pill labels, mastery-bar topic names).
 
 export const colors = {
-  bg: '#F5F7F4',
-  bgWash: '#DCEBE6',
-  panel: '#FFFFFF',
-  panel2: '#EEF3EF',
-  ink: '#14201C',
-  text: '#14201C',
-  muted: '#5A6B64',
-  accent: '#0F6B5C',
-  accentSoft: '#E3F2EE',
-  brass: '#C4893A',
-  brassSoft: '#F7EBD8',
-  good: '#1A8F6A',
-  warn: '#C4893A',
-  bad: '#C44B4B',
-  border: '#D4DDD8',
+  bg: '#0d0f14',
+  bgWash: '#171a22',
+  panel: '#161a22',
+  panel2: '#1e2330',
+  ink: '#EDEAE3',
+  text: '#EDEAE3',
+  muted: '#9C968A',
+  accent: '#e8a84c',
+  accentSoft: 'rgba(232,168,76,0.14)',
+  brass: '#6D82C9',
+  brassSoft: 'rgba(109,130,201,0.14)',
+  good: '#3BA36E',
+  warn: '#6D82C9',
+  bad: '#E2685C',
+  border: 'rgba(255,255,255,0.08)',
   white: '#FFFFFF',
 };
 
@@ -31,8 +36,9 @@ export const outcomeColor = {
   reinforce: colors.brass,
 };
 
-/** Soft accent stripes for course tiles (cycled by index). */
-export const stripePalette = ['#0F6B5C', '#1A8F6A', '#C4893A', '#2A6F7A', '#4A6B5C'];
+/** Course-identity stripes (cycled by id, not by category — decorative
+ *  accent, always paired with the course title/icon, never color-alone). */
+export const stripePalette = ['#C97F30', '#1A8FC2', '#B0559E', '#7FA23E', '#8B74C9'];
 
 /** Stable per-course color, keyed by id rather than list position, so a course
  *  keeps the same identity color on its tile and on its detail page. */
@@ -48,10 +54,12 @@ export const space = { xs: 6, sm: 8, md: 12, lg: 16, xl: 20, xxl: 28, xxxl: 40 }
 export const fonts = {
   display: 'Fraunces_600SemiBold',
   displayBold: 'Fraunces_700Bold',
-  body: 'Manrope_400Regular',
-  bodyMedium: 'Manrope_500Medium',
-  bodySemi: 'Manrope_600SemiBold',
-  bodyBold: 'Manrope_700Bold',
+  body: 'PlusJakartaSans_400Regular',
+  bodyMedium: 'PlusJakartaSans_500Medium',
+  bodySemi: 'PlusJakartaSans_600SemiBold',
+  bodyBold: 'PlusJakartaSans_700Bold',
+  mono: 'DMMono_400Regular',
+  monoMedium: 'DMMono_500Medium',
 };
 
 export const type = {
@@ -64,14 +72,15 @@ export const type = {
   caption: { fontFamily: fonts.bodyMedium, fontSize: 13, lineHeight: 18 },
   label: { fontFamily: fonts.bodySemi, fontSize: 13, lineHeight: 18 },
   score: { fontFamily: fonts.displayBold, fontSize: 56, lineHeight: 62, letterSpacing: -1 },
+  mono: { fontFamily: fonts.mono, fontSize: 13, lineHeight: 18 },
 };
 
 export const shadow = {
   soft: {
-    shadowColor: '#14201C',
+    shadowColor: '#000000',
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.06,
-    shadowRadius: 16,
-    elevation: 3,
+    shadowOpacity: 0.35,
+    shadowRadius: 20,
+    elevation: 4,
   },
 };

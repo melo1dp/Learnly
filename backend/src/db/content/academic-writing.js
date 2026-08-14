@@ -4,6 +4,9 @@ export default {
   title: 'Academic Writing',
   description:
     'Build stronger papers by crafting clear thesis statements, structuring evidence-based arguments, and citing sources to avoid plagiarism.',
+  category: 'Humanities',
+  level: 'beginner',
+  rating: 4.4,
   topics: [
     topic(
       'thesis',

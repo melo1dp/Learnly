@@ -4,6 +4,9 @@ export default {
   title: 'Microeconomics Fundamentals',
   description:
     'Core university microeconomics: demand and supply, elasticity, and how market structure shapes price and output from perfect competition to monopoly.',
+  category: 'Social Science',
+  level: 'intermediate',
+  rating: 4.5,
   topics: [
     topic(
       'demand_supply',

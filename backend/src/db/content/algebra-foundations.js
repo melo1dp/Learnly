@@ -4,6 +4,9 @@ export default {
   title: 'Algebra Foundations',
   description:
     'Build fluency with linear equations, function notation and graphs, and quadratic equations that produce parabolas.',
+  category: 'Math',
+  level: 'beginner',
+  rating: 4.4,
   topics: [
     topic(
       'linear_equations',

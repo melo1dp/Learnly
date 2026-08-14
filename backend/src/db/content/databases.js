@@ -2,6 +2,9 @@
 export default {
   title: 'Databases & SQL',
   description: 'Learn how relational databases store data in tables, how to query that data with SQL, and how to combine tables with joins.',
+  category: 'Computing',
+  level: 'intermediate',
+  rating: 4.7,
   topics: [
     {
       topic: 'tables',

@@ -4,6 +4,9 @@ export default {
   title: 'Introduction to Psychology',
   description:
     'Foundational university psychology covering research methods, classical and operant learning, and the cognitive systems that support memory.',
+  category: 'Social Science',
+  level: 'beginner',
+  rating: 4.7,
   topics: [
     topic(
       'research_methods',

@@ -9,6 +9,9 @@ export default {
   title: 'Cell Biology Basics',
   description:
     'Learn how cells are built, how membranes control traffic, and how metabolism releases and stores energy through respiration and photosynthesis.',
+  category: 'Science',
+  level: 'beginner',
+  rating: 4.6,
   topics: [
     topic(
       'cell_structure',

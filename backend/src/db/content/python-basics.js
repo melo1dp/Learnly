@@ -2,6 +2,9 @@
 export default {
   title: 'Python Basics',
   description: 'An introduction to Python syntax, functions, and built-in collections, from first statements to the edge cases that trip people up.',
+  category: 'Computing',
+  level: 'beginner',
+  rating: 4.6,
   topics: [
     {
       topic: 'syntax',

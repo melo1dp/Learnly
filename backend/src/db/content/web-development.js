@@ -2,6 +2,9 @@
 export default {
   title: 'Web Development Foundations',
   description: 'Build a web page from the ground up with HTML structure, CSS styling, and DOM behaviour.',
+  category: 'Computing',
+  level: 'beginner',
+  rating: 4.5,
   topics: [
     {
       topic: 'html',

@@ -53,8 +53,15 @@ async function seedCurriculum() {
     for (const course of courses) {
       const courseId = (
         await client.query(
-          "INSERT INTO courses (title, description) VALUES ($1, $2) RETURNING id",
-          [course.title, course.description],
+          `INSERT INTO courses (title, description, category, level, rating)
+           VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+          [
+            course.title,
+            course.description,
+            course.category || "",
+            course.level || "beginner",
+            course.rating ?? null,
+          ],
         )
       ).rows[0].id;
 
@@ -103,29 +110,42 @@ async function seedCurriculum() {
 }
 
 export async function initDb() {
-  const tables = await pool.query(
-    "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'",
-  );
-  const exists = tables.rows.some((row) => row.table_name === "users");
+  // Serialize startup seeding across concurrent processes (e.g. a leftover
+  // dev-server instance plus a fresh `db:reset` run) with a Postgres advisory
+  // lock. Without this, two processes can both see an empty table and both
+  // seed, producing duplicate rows — the check-then-insert isn't atomic
+  // otherwise.
+  const client = await pool.connect();
+  try {
+    await client.query("SELECT pg_advisory_lock(727501)");
 
-  if (!exists) {
-    console.log("Initializing Postgres schema...");
-    const schema = readFileSync(join(__dirname, "schema.sql"), "utf8");
-    await pool.query(schema);
-  }
+    const tables = await client.query(
+      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public'",
+    );
+    const exists = tables.rows.some((row) => row.table_name === "users");
 
-  const userCount = Number(
-    (await pool.query("SELECT COUNT(*) AS c FROM users")).rows[0].c,
-  );
-  if (userCount === 0) {
-    await seedDemoUsers();
-  }
+    if (!exists) {
+      console.log("Initializing Postgres schema...");
+      const schema = readFileSync(join(__dirname, "schema.sql"), "utf8");
+      await client.query(schema);
+    }
 
-  const courseCount = Number(
-    (await pool.query("SELECT COUNT(*) AS c FROM courses")).rows[0].c,
-  );
-  if (courseCount === 0) {
-    await seedCurriculum();
+    const userCount = Number(
+      (await client.query("SELECT COUNT(*) AS c FROM users")).rows[0].c,
+    );
+    if (userCount === 0) {
+      await seedDemoUsers();
+    }
+
+    const courseCount = Number(
+      (await client.query("SELECT COUNT(*) AS c FROM courses")).rows[0].c,
+    );
+    if (courseCount === 0) {
+      await seedCurriculum();
+    }
+  } finally {
+    await client.query("SELECT pg_advisory_unlock(727501)");
+    client.release();
   }
 }
 

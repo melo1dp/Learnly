@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Animated,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import {
   colorForCourse,
@@ -24,15 +26,26 @@ import {
   type,
 } from '../lib/theme';
 
-/** Scrolling page body with paper + teal wash backdrop. */
+/** Radial-gradient-mesh approximation: soft overlapping color blobs, merged
+ *  by a blur, over the base slate canvas. expo-linear-gradient only draws
+ *  linear gradients, so a true radial mesh isn't directly available — this
+ *  is the practical substitute. */
+export function MeshBackdrop() {
+  return (
+    <View style={StyleSheet.absoluteFill} pointerEvents="none">
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: colors.bg }]} />
+      <View style={s.meshBlobAmber} />
+      <View style={s.meshBlobViolet} />
+      <BlurView intensity={70} tint="dark" style={StyleSheet.absoluteFill} />
+    </View>
+  );
+}
+
+/** Scrolling page body over the mesh backdrop. */
 export function Screen({ children, center = false, style }) {
   return (
     <View style={s.flex}>
-      <LinearGradient
-        colors={[colors.bgWash, colors.bg, colors.bg]}
-        locations={[0, 0.35, 1]}
-        style={StyleSheet.absoluteFill}
-      />
+      <MeshBackdrop />
       <ScrollView
         style={s.flex}
         contentContainerStyle={[s.screenContent, center && s.screenCentered, style]}
@@ -114,19 +127,58 @@ export function usePressScale({ to = 0.98 } = {}) {
   return { scale, pressIn, pressOut };
 }
 
-export function CourseTile({ id, title, description, index = 0, onPress }) {
+const LEVEL_TONE = { beginner: 'easy', intermediate: 'medium', advanced: 'hard' };
+
+export function CourseTile({
+  id,
+  title,
+  description,
+  category,
+  level,
+  rating,
+  progress, // 0-1, or undefined if the learner hasn't started it
+  index = 0,
+  onPress,
+}) {
   const { scale, pressIn, pressOut } = usePressScale();
+  const lift = useRef(new Animated.Value(0)).current;
   const stripe = id != null ? colorForCourse(id) : stripePalette[index % stripePalette.length];
   const icon = courseIconFor(title);
 
+  // Hover-lift is web-only — onHoverIn/Out simply never fire on native (no mouse).
+  function hoverIn() {
+    if (Platform.OS !== 'web') return;
+    Animated.timing(lift, { toValue: 1, duration: 150, useNativeDriver: true }).start();
+  }
+  function hoverOut() {
+    if (Platform.OS !== 'web') return;
+    Animated.timing(lift, { toValue: 0, duration: 150, useNativeDriver: true }).start();
+  }
+
   return (
-    <Pressable onPress={onPress} onPressIn={pressIn} onPressOut={pressOut}>
-      <Animated.View style={[s.courseTile, { transform: [{ scale }] }]}>
-        <View style={[s.courseStripe, { backgroundColor: stripe }]} />
-        <View style={[s.courseIconWrap, { backgroundColor: `${stripe}18` }]}>
-          <Ionicons name={icon} size={20} color={stripe} />
+    <Pressable
+      onPress={onPress}
+      onPressIn={pressIn}
+      onPressOut={pressOut}
+      onHoverIn={hoverIn}
+      onHoverOut={hoverOut}
+    >
+      <Animated.View
+        style={[
+          s.courseCard,
+          {
+            transform: [
+              { scale },
+              { translateY: lift.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) },
+            ],
+          },
+        ]}
+      >
+        <View style={[s.courseThumb, { backgroundColor: stripe }]}>
+          <Ionicons name={icon} size={28} color={colors.white} />
         </View>
-        <View style={s.courseBody}>
+
+        <View style={s.courseCardBody}>
           <Text style={s.courseTitle} numberOfLines={2}>
             {title}
           </Text>
@@ -135,8 +187,32 @@ export function CourseTile({ id, title, description, index = 0, onPress }) {
               {description}
             </Text>
           ) : null}
+
+          <View style={s.courseTags}>
+            {category ? <Pill label={category} /> : null}
+            {level ? <Pill label={level} tone={LEVEL_TONE[level]} /> : null}
+            {rating != null ? (
+              <View style={s.ratingChip}>
+                <Ionicons name="star" size={11} color={colors.accent} />
+                <Text style={s.ratingText}>{rating}</Text>
+              </View>
+            ) : null}
+          </View>
+
+          {progress != null ? (
+            <View style={s.courseProgressRow}>
+              <View style={s.courseProgressTrack}>
+                <View
+                  style={[
+                    s.courseProgressFill,
+                    { width: `${Math.round(progress * 100)}%`, backgroundColor: stripe },
+                  ]}
+                />
+              </View>
+              <Text style={s.courseProgressText}>{Math.round(progress * 100)}%</Text>
+            </View>
+          ) : null}
         </View>
-        <Ionicons name="chevron-forward" size={20} color={colors.muted} />
       </Animated.View>
     </Pressable>
   );
@@ -452,6 +528,27 @@ const s = StyleSheet.create({
   screenContent: { padding: space.xl, paddingBottom: 56, gap: space.md },
   screenCentered: { flexGrow: 1, justifyContent: 'center' },
 
+  meshBlobAmber: {
+    position: 'absolute',
+    top: -90,
+    right: -70,
+    width: 280,
+    height: 280,
+    borderRadius: 140,
+    backgroundColor: colors.accent,
+    opacity: 0.16,
+  },
+  meshBlobViolet: {
+    position: 'absolute',
+    bottom: -110,
+    left: -90,
+    width: 320,
+    height: 320,
+    borderRadius: 160,
+    backgroundColor: '#8B74C9',
+    opacity: 0.12,
+  },
+
   card: {
     backgroundColor: colors.panel,
     borderWidth: 1,
@@ -487,31 +584,35 @@ const s = StyleSheet.create({
   },
   emptyTitle: { ...type.h3, color: colors.ink },
 
-  courseTile: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  courseCard: {
     backgroundColor: colors.panel,
     borderRadius: radius.lg,
     borderWidth: 1,
     borderColor: colors.border,
     overflow: 'hidden',
-    paddingRight: space.lg,
-    minHeight: 92,
     ...shadow.soft,
   },
-  courseStripe: { width: 6, alignSelf: 'stretch' },
-  courseIconWrap: {
-    width: 40,
-    height: 40,
-    borderRadius: radius.md,
+  courseThumb: {
+    height: 72,
     alignItems: 'center',
     justifyContent: 'center',
-    marginLeft: space.lg,
-    alignSelf: 'center',
   },
-  courseBody: { flex: 1, paddingVertical: space.lg, paddingHorizontal: space.lg, gap: 4 },
+  courseCardBody: { padding: space.lg, gap: 6 },
   courseTitle: { ...type.h3, color: colors.ink },
   courseDesc: { ...type.caption, color: colors.muted },
+  courseTags: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.xs, marginTop: 2 },
+  ratingChip: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  ratingText: { fontFamily: fonts.monoMedium, fontSize: 12, color: colors.ink },
+  courseProgressRow: { flexDirection: 'row', alignItems: 'center', gap: space.sm, marginTop: 4 },
+  courseProgressTrack: {
+    flex: 1,
+    height: 6,
+    borderRadius: radius.pill,
+    backgroundColor: colors.panel2,
+    overflow: 'hidden',
+  },
+  courseProgressFill: { height: '100%', borderRadius: radius.pill },
+  courseProgressText: { fontFamily: fonts.mono, fontSize: 11, color: colors.muted },
 
   lessonRow: {
     flexDirection: 'row',

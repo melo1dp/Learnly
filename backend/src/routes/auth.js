@@ -98,4 +98,38 @@ router.get(
   }),
 );
 
+// PATCH /api/auth/password  { currentPassword, newPassword }
+router.patch(
+  "/password",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const { currentPassword, newPassword } = req.body || {};
+    if (!currentPassword || !newPassword) {
+      return res
+        .status(400)
+        .json({ error: "currentPassword and newPassword are required" });
+    }
+    if (String(newPassword).length < 8) {
+      return res.status(400).json({ error: "New password must be at least 8 characters" });
+    }
+
+    const result = await pool.query(
+      "SELECT password_hash FROM users WHERE id = $1",
+      [req.user.id],
+    );
+    const row = result.rows[0];
+    if (!row || !bcrypt.compareSync(currentPassword, row.password_hash)) {
+      return res.status(401).json({ error: "Current password is incorrect" });
+    }
+
+    const passwordHash = bcrypt.hashSync(newPassword, 10);
+    await pool.query("UPDATE users SET password_hash = $1 WHERE id = $2", [
+      passwordHash,
+      req.user.id,
+    ]);
+
+    res.json({ ok: true });
+  }),
+);
+
 export default router;

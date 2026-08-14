@@ -4,6 +4,9 @@ export default {
   title: 'Statistics Essentials',
   description:
     'A university-level introduction to descriptive statistics, basic probability, and the foundations of statistical inference: sampling and hypothesis testing.',
+  category: 'Math',
+  level: 'intermediate',
+  rating: 4.5,
   topics: [
     topic(
       'descriptive',

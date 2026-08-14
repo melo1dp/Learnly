@@ -4,6 +4,9 @@ export default {
   title: 'Environmental Science',
   description:
     'Study how energy and nutrients move through ecosystems, how the climate system works, and how societies can use resources more sustainably.',
+  category: 'Science',
+  level: 'beginner',
+  rating: 4.3,
   topics: [
     topic(
       'ecosystems',

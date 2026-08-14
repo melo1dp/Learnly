@@ -4,6 +4,9 @@ export default {
   title: 'Revolutions in World History',
   description:
     'Examine Enlightenment ideas, the Atlantic revolutions in America and France, and the Industrial Revolution’s social and economic transformation.',
+  category: 'Humanities',
+  level: 'intermediate',
+  rating: 4.6,
   topics: [
     topic(
       'enlightenment',

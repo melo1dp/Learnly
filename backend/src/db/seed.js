@@ -50,8 +50,15 @@ async function main() {
     for (const course of courses) {
       const courseId = (
         await client.query(
-          'INSERT INTO courses (title, description) VALUES ($1, $2) RETURNING id',
-          [course.title, course.description],
+          `INSERT INTO courses (title, description, category, level, rating)
+           VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+          [
+            course.title,
+            course.description,
+            course.category || '',
+            course.level || 'beginner',
+            course.rating ?? null,
+          ],
         )
       ).rows[0].id;
 

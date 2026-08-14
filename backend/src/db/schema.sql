@@ -20,11 +20,15 @@ CREATE TABLE users (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Top-level course container
+-- Top-level course container.
+-- `category`/`level`/`rating` are static display metadata (not user-generated).
 CREATE TABLE courses (
   id          INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   title       TEXT NOT NULL,
-  description TEXT NOT NULL DEFAULT ''
+  description TEXT NOT NULL DEFAULT '',
+  category    TEXT NOT NULL DEFAULT '',
+  level       TEXT NOT NULL DEFAULT 'beginner' CHECK (level IN ('beginner', 'intermediate', 'advanced')),
+  rating      NUMERIC(2,1)
 );
 
 -- Content units. `difficulty` and `topic` are what the adaptation engine reads.
