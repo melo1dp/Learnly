@@ -8,6 +8,7 @@ import authRoutes from "./routes/auth.js";
 import courseRoutes from "./routes/courses.js";
 import lessonRoutes from "./routes/lessons.js";
 import quizRoutes from "./routes/quizzes.js";
+import attemptRoutes from "./routes/attempts.js";
 import progressRoutes from "./routes/progress.js";
 
 const app = express();
@@ -42,6 +43,7 @@ app.use(
 app.use("/api/courses", courseRoutes);
 app.use("/api/lessons", lessonRoutes);
 app.use("/api/quizzes", quizRoutes);
+app.use("/api/attempts", attemptRoutes);
 app.use("/api/progress", progressRoutes);
 
 // Unmatched API routes: JSON, not Express's default HTML error page. The client

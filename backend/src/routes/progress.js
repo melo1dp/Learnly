@@ -24,7 +24,8 @@ router.get(
 
     const attempts = (
       await pool.query(
-        `SELECT a.id, a.score, a.taken_at, l.title AS lesson_title, l.topic
+        `SELECT a.id, a.score, a.taken_at, a.quiz_id,
+                l.id AS lesson_id, l.title AS lesson_title, l.topic
            FROM attempts a
            JOIN quizzes q ON q.id = a.quiz_id
            JOIN lessons l ON l.id = q.lesson_id

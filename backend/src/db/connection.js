@@ -121,6 +121,35 @@ async function seedCurriculum() {
   }
 }
 
+/**
+ * Additive schema changes applied to an existing database.
+ *
+ * schema.sql opens with DROP TABLE, so it can only ever be applied to an empty
+ * database — which makes every new table a destructive reset, and a reset costs
+ * every registered account and their whole quiz history. Anything that can be
+ * added without dropping belongs here instead. Each statement must be safe to
+ * run repeatedly, because it runs on every boot.
+ */
+async function migrate(client) {
+  const before = await client.query(
+    "SELECT to_regclass('public.attempt_answers') AS t",
+  );
+  if (before.rows[0].t) return;
+
+  console.log("Applying migration: attempt_answers...");
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS attempt_answers (
+      attempt_id   INTEGER NOT NULL REFERENCES attempts(id) ON DELETE CASCADE,
+      question_id  INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+      chosen_index INTEGER,
+      is_correct   BOOLEAN NOT NULL,
+      PRIMARY KEY (attempt_id, question_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_attempt_answers_question
+      ON attempt_answers (question_id);
+  `);
+}
+
 export async function initDb() {
   // Serialize startup seeding across concurrent processes (e.g. a leftover
   // dev-server instance plus a fresh `db:reset` run) with a Postgres advisory
@@ -140,6 +169,8 @@ export async function initDb() {
       console.log("Initializing Postgres schema...");
       const schema = readFileSync(join(__dirname, "schema.sql"), "utf8");
       await client.query(schema);
+    } else {
+      await migrate(client);
     }
 
     const userCount = Number(

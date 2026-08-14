@@ -71,6 +71,20 @@ CREATE TABLE attempts (
   taken_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- What the learner actually chose, question by question.
+--
+-- Without this, an attempt records only its aggregate score: the result screen
+-- could be shown once, at submit time, and never again — no "review my last
+-- quiz", no item analysis, and nothing for a future engine that wants to know
+-- *which* concept was missed rather than just that the total was low.
+CREATE TABLE attempt_answers (
+  attempt_id   INTEGER NOT NULL REFERENCES attempts(id) ON DELETE CASCADE,
+  question_id  INTEGER NOT NULL REFERENCES questions(id) ON DELETE CASCADE,
+  chosen_index INTEGER,                    -- NULL when the question was skipped
+  is_correct   BOOLEAN NOT NULL,
+  PRIMARY KEY (attempt_id, question_id)
+);
+
 -- Adaptation decisions: why the engine recommended a next lesson after a quiz.
 CREATE TABLE recommendations (
   id              INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -114,6 +128,7 @@ CREATE INDEX idx_quizzes_lesson            ON quizzes (lesson_id);
 CREATE INDEX idx_questions_quiz            ON questions (quiz_id);
 CREATE INDEX idx_attempts_user_taken       ON attempts (user_id, taken_at DESC);
 CREATE INDEX idx_attempts_quiz             ON attempts (quiz_id);
+CREATE INDEX idx_attempt_answers_question  ON attempt_answers (question_id);
 CREATE INDEX idx_recommendations_user_time ON recommendations (user_id, created_at DESC);
 CREATE INDEX idx_recommendations_lesson    ON recommendations (lesson_id);
 CREATE INDEX idx_recommendations_next      ON recommendations (next_lesson_id);

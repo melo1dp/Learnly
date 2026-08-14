@@ -98,10 +98,23 @@ router.post(
       });
       const score = Math.round((correct / questions.length) * 100);
 
-      // --- Record the attempt ---
+      // --- Record the attempt, and what was actually answered ---
+      const attemptId = (
+        await client.query(
+          'INSERT INTO attempts (user_id, quiz_id, score) VALUES ($1, $2, $3) RETURNING id',
+          [req.user.id, quiz.id, score],
+        )
+      ).rows[0].id;
+
       await client.query(
-        'INSERT INTO attempts (user_id, quiz_id, score) VALUES ($1, $2, $3)',
-        [req.user.id, quiz.id, score],
+        `INSERT INTO attempt_answers (attempt_id, question_id, chosen_index, is_correct)
+         SELECT $1, * FROM UNNEST($2::int[], $3::int[], $4::bool[])`,
+        [
+          attemptId,
+          perQuestion.map((q) => q.questionId),
+          perQuestion.map((q) => q.chosen),
+          perQuestion.map((q) => q.isCorrect),
+        ],
       );
 
       // --- Run the adaptation engine (the star of the show) ---
@@ -109,6 +122,7 @@ router.post(
 
       await client.query('COMMIT');
       payload = {
+        attemptId,
         score,
         correct,
         total: questions.length,

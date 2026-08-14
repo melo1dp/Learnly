@@ -55,14 +55,33 @@ router.get(
     const course = courseResult.rows[0];
     if (!course) return res.status(404).json({ error: 'Course not found' });
 
+    // Each lesson carries whether *this* learner has completed it and their
+    // best score. Without it every row in a nine-lesson course looked
+    // identical, so the adaptive path the app is built around was invisible on
+    // the one screen where the learner chooses what to do next.
     const lessons = (
       await pool.query(
-        'SELECT id, title, topic, difficulty, position FROM lessons WHERE course_id = $1 ORDER BY position',
-        [course.id],
+        `SELECT l.id, l.title, l.topic, l.difficulty, l.position,
+                (best.score IS NOT NULL) AS completed,
+                best.score AS best_score
+           FROM lessons l
+           LEFT JOIN quizzes q ON q.lesson_id = l.id
+           LEFT JOIN LATERAL (
+             SELECT MAX(a.score) AS score
+               FROM attempts a
+              WHERE a.quiz_id = q.id AND a.user_id = $2
+           ) best ON TRUE
+          WHERE l.course_id = $1
+          ORDER BY l.position`,
+        [course.id, req.user.id],
       )
     ).rows;
 
-    res.json({ ...course, lessons });
+    res.json({
+      ...course,
+      lessons,
+      completedCount: lessons.filter((l) => l.completed).length,
+    });
   }),
 );
 
