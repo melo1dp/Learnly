@@ -37,8 +37,11 @@ export default function Profile() {
   const router = useRouter();
   const { data: progress, error, refreshing, refresh } = useApi('/progress');
 
-  if (error) return <ErrorScreen message={error} />;
-  if (!progress) return <Loading />;
+  // This screen holds the only Log out button in the app, so replacing it
+  // wholesale with an error made a failed request unrecoverable — including the
+  // expired-token case, where logging out is exactly what the user needs.
+  if (error && !progress) return <ErrorScreen message={error} onRetry={refresh} />;
+  if (!progress) return <Loading label="Loading your profile" />;
 
   const quizAttempts = progress.attempts?.length || 0;
   const masteredTopics = (progress.mastery || []).filter((m) => m.status === 'mastered').length;
@@ -72,7 +75,14 @@ export default function Profile() {
           <Text style={s.email}>{user?.email}</Text>
           <Row style={s.badgeRow}>
             <Pill label={user?.role} />
-            {user?.created_at ? <Pill label={`Member since ${user.created_at.slice(0, 10)}`} /> : null}
+            {user?.created_at ? (
+              <Pill
+                label={`Member since ${new Date(user.created_at).toLocaleDateString(undefined, {
+                  month: 'short',
+                  year: 'numeric',
+                })}`}
+              />
+            ) : null}
           </Row>
         </View>
 

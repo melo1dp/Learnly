@@ -15,7 +15,7 @@ import {
 import { colors, fonts } from "../lib/theme";
 
 export default function Login() {
-  const { login } = useAuth();
+  const { login, sessionExpired } = useAuth();
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -71,6 +71,10 @@ export default function Login() {
           </View>
 
           <Card>
+            {/* Otherwise being bounced back here mid-session looks like a bug. */}
+            {sessionExpired ? (
+              <Muted>Your session expired. Please sign in again.</Muted>
+            ) : null}
             <Field
               label="Email"
               value={email}

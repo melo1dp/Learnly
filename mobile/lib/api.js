@@ -89,6 +89,42 @@ export function setToken(token) {
   return storageSet(TOKEN_KEY, token);
 }
 
+/** A request that reached the server and came back with a non-2xx status. */
+export class ApiError extends Error {
+  constructor(message, status) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+  }
+}
+
+/**
+ * A request that never got an answer — offline, backend down, DNS, timeout.
+ * Distinct from ApiError because the two want different handling: a network
+ * failure is worth retrying and must never be read as "your token is bad".
+ */
+export class NetworkError extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "NetworkError";
+  }
+}
+
+// Without a timeout a stalled connection leaves the screen on its spinner
+// forever — the request neither resolves nor rejects.
+const REQUEST_TIMEOUT_MS = 15_000;
+
+// 401 on these means "the credentials you just typed are wrong", not "your
+// session has expired" — logging the user out over a typo would be absurd.
+const CREDENTIAL_PATHS = ["/auth/login", "/auth/register", "/auth/password"];
+
+let onUnauthorized = null;
+
+/** Registered by the auth provider so an expired token logs out app-wide. */
+export function setUnauthorizedHandler(handler) {
+  onUnauthorized = handler;
+}
+
 export async function api(path, { method = "GET", body } = {}) {
   const baseUrl = apiBaseUrl();
 
@@ -96,19 +132,32 @@ export async function api(path, { method = "GET", body } = {}) {
   const token = await getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
   let res;
   try {
     res = await fetch(`${baseUrl}/api${path}`, {
       method,
       headers,
       body: body ? JSON.stringify(body) : undefined,
+      signal: controller.signal,
     });
   } catch {
-    // A dead backend surfaces as a bare "Network request failed" on device,
-    // which tells the user nothing. Say where we were actually trying to go.
-    throw new Error(
-      `Can't reach the Learnly backend at ${baseUrl}. Is it running?`,
+    // The base URL is useful while developing and meaningless to a real user,
+    // so it only appears in dev builds.
+    if (controller.signal.aborted) {
+      throw new NetworkError(
+        "The server is taking too long to respond. Check your connection and try again.",
+      );
+    }
+    throw new NetworkError(
+      __DEV__
+        ? `Can't reach the Learnly backend at ${baseUrl}. Is it running?`
+        : "No connection. Check your internet and try again.",
     );
+  } finally {
+    clearTimeout(timer);
   }
 
   let data = {};
@@ -122,8 +171,11 @@ export async function api(path, { method = "GET", body } = {}) {
   }
 
   if (!res.ok) {
-    const errorMessage = data.error || `Request failed (${res.status})`;
-    throw new Error(errorMessage);
+    if (res.status === 401 && !CREDENTIAL_PATHS.includes(path)) {
+      onUnauthorized?.();
+      throw new ApiError("Your session has expired. Please sign in again.", 401);
+    }
+    throw new ApiError(data.error || `Request failed (${res.status})`, res.status);
   }
 
   return data;

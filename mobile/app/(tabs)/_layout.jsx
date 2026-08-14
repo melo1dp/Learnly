@@ -10,11 +10,12 @@ export default function TabsLayout() {
         headerShadowVisible: false,
         headerTintColor: colors.ink,
         headerTitleStyle: { color: colors.ink, fontFamily: fonts.bodySemi, fontSize: 17 },
+        // No explicit `height`. Setting one overrides React Navigation's
+        // inset-aware default (49 + the bottom safe-area inset, ~83 on a notched
+        // iPhone), which pushed the labels onto the home indicator.
         tabBarStyle: {
           backgroundColor: colors.panel,
           borderTopColor: colors.border,
-          height: 60,
-          paddingBottom: 8,
           paddingTop: 6,
         },
         tabBarActiveTintColor: colors.accent,

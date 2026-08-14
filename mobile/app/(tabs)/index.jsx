@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   FlatList,
   Pressable,
@@ -12,12 +12,13 @@ import { Stack, useRouter } from "expo-router";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useApi } from "../../lib/useApi";
 import { useAuth } from "../../lib/auth";
-import { courseCompletion } from "../../lib/stats";
+import { courseCompletion, masteryIndex } from "../../lib/stats";
 import {
   Choice,
   ContinueCard,
   CourseTile,
   EmptyState,
+  ErrorBanner,
   ErrorScreen,
   Loading,
   MeshBackdrop,
@@ -36,19 +37,34 @@ export default function Courses() {
   const { user } = useAuth();
   const router = useRouter();
   const { data: courses, error, refreshing, refresh } = useApi("/courses");
-  const { data: progress } = useApi("/progress");
+  const {
+    data: progress,
+    error: progressError,
+    reload: reloadProgress,
+  } = useApi("/progress");
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
 
-  if (error) return <ErrorScreen message={error} />;
-  if (!courses) return <Loading />;
-
   const mastery = progress?.mastery || [];
+  // Built once per render rather than rebuilt inside courseCompletion for every
+  // tile, on every keystroke of the search box.
+  const index = useMemo(() => masteryIndex(mastery), [mastery]);
+
+  // Only a full-screen error when there is nothing to show. A failed refetch
+  // used to replace an already-loaded catalogue with a single line of red text.
+  if (error && !courses) {
+    return <ErrorScreen message={error} onRetry={refresh} />;
+  }
+  if (!courses) return <Loading label="Loading courses" />;
+
   const continueRec = progress?.continueLearning;
   const quizAttempts = progress?.attempts?.length || 0;
   const masteredTopics = mastery.filter((m) => m.status === "mastered").length;
-  const progressSummary =
-    quizAttempts === 0
+  // With /progress failed there is no attempt data, and claiming "take your
+  // first quiz" to someone with forty attempts is worse than saying nothing.
+  const progressSummary = progressError
+    ? "Your progress couldn’t be loaded just now."
+    : quizAttempts === 0
       ? "Take your first quiz to start building momentum."
       : `You’ve completed ${quizAttempts} quiz attempt${quizAttempts === 1 ? "" : "s"} and ${masteredTopics} mastered topic${masteredTopics === 1 ? "" : "s"}.`;
 
@@ -58,7 +74,7 @@ export default function Courses() {
 
     if (filter === "all") return true;
     if (filter === "beginner" || filter === "advanced") return course.level === filter;
-    const { status } = courseCompletion(course, mastery);
+    const { status } = courseCompletion(course, index);
     return status === filter;
   });
 
@@ -73,6 +89,8 @@ export default function Courses() {
               <Pressable
                 onPress={() => router.push("/courses/new")}
                 hitSlop={12}
+                accessibilityRole="button"
+                accessibilityLabel="Create a new course"
                 style={{ paddingHorizontal: 16 }}
               >
                 <Ionicons name="add" size={26} color={colors.accent} />
@@ -87,6 +105,10 @@ export default function Courses() {
         keyExtractor={(c) => String(c.id)}
         style={s.list}
         contentContainerStyle={s.listContent}
+        // The search box lives in ListHeaderComponent. Without this, the first
+        // tap on a course card with the keyboard up only dismisses the keyboard.
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -96,6 +118,7 @@ export default function Courses() {
         }
         ListHeaderComponent={
           <View style={s.header}>
+            <ErrorBanner message={error} onRetry={refresh} />
             <Text style={s.greeting}>
               {user?.name
                 ? `Hello, ${user.name.split(" ")[0]}`
@@ -130,11 +153,13 @@ export default function Courses() {
             <View style={s.progressCard}>
               <Text style={s.progressTitle}>Learning snapshot</Text>
               <Text style={s.progressBody}>{progressSummary}</Text>
-              {continueRec?.nextLesson ? (
-                <Text style={s.progressHint}>
-                  Next step · {continueRec.nextLesson.title}
-                </Text>
-              ) : (
+              {/* When there IS a recommendation the ContinueCard below says so
+                  in full; repeating the lesson title here just duplicated it. */}
+              {progressError ? (
+                <Pressable onPress={reloadProgress} hitSlop={8}>
+                  <Text style={s.progressHint}>Tap to retry</Text>
+                </Pressable>
+              ) : continueRec?.nextLesson ? null : (
                 <Text style={s.progressHint}>
                   Take a quiz to unlock your next recommendation.
                 </Text>
@@ -164,8 +189,8 @@ export default function Courses() {
             }
           />
         }
-        renderItem={({ item, index }) => {
-          const { pct } = courseCompletion(item, mastery);
+        renderItem={({ item, index: position }) => {
+          const { pct } = courseCompletion(item, index);
           return (
             <CourseTile
               id={item.id}
@@ -175,7 +200,7 @@ export default function Courses() {
               level={item.level}
               rating={item.rating}
               progress={pct}
-              index={index}
+              index={position}
               onPress={() => router.push(`/courses/${item.id}`)}
             />
           );

@@ -1,13 +1,22 @@
+import { useMemo } from 'react';
 import { Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useApi } from '../../lib/useApi';
-import { attemptsInLastDays, computeStreak, courseCompletion, dailyAttemptCounts, masteryByCategory } from '../../lib/stats';
+import {
+  computeStreak,
+  courseCompletion,
+  dailyAttemptCounts,
+  formatWhen,
+  masteryByCategory,
+  masteryIndex,
+} from '../../lib/stats';
 import { ActivityAreaChart, CategoryMasteryChart, RingMeter } from '../../components/charts';
 import {
   Banner,
   Card,
   ContinueCard,
   EmptyState,
+  ErrorBanner,
   ErrorScreen,
   Loading,
   MasteryChart,
@@ -19,27 +28,27 @@ import {
 } from '../../components/ui';
 import { colors, fonts, space, type } from '../../lib/theme';
 
-const WEEKLY_GOAL = 5;
-
 export default function Dashboard() {
   const router = useRouter();
   const { data, error, refreshing, refresh } = useApi('/progress');
-  const { data: courses } = useApi('/courses');
+  const { data: courses, error: coursesError, reload: reloadCourses } = useApi('/courses');
 
-  if (error) return <ErrorScreen message={error} />;
-  if (!data) return <Loading />;
+  const mastery = data?.mastery || [];
+  const index = useMemo(() => masteryIndex(mastery), [mastery]);
+
+  if (error && !data) return <ErrorScreen message={error} onRetry={refresh} />;
+  if (!data) return <Loading label="Loading your progress" />;
 
   const continueRec = data.continueLearning;
-  const mastery = data.mastery || [];
   const masteredCount = mastery.filter((m) => m.status === 'mastered').length;
   const averageScore = data.attempts.length
     ? Math.round(data.attempts.reduce((sum, a) => sum + a.score, 0) / data.attempts.length)
     : 0;
   const streak = computeStreak(data.attempts);
   const weeklyActivity = dailyAttemptCounts(data.attempts, 7);
-  const categoryData = masteryByCategory(courses || [], mastery);
+  const categoryData = masteryByCategory(courses || [], index);
   const startedCourses = (courses || []).filter(
-    (c) => courseCompletion(c, mastery).status !== 'not_started',
+    (c) => courseCompletion(c, index).status !== 'not_started',
   );
 
   return (
@@ -52,6 +61,14 @@ export default function Dashboard() {
           <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={colors.accent} />
         }
       >
+        <ErrorBanner message={error} onRetry={refresh} />
+        {/* The category and completion sections silently vanish when /courses
+            fails — say so rather than letting them look empty. */}
+        <ErrorBanner
+          message={coursesError ? 'Course data couldn’t be loaded.' : ''}
+          onRetry={reloadCourses}
+        />
+
         <Text style={s.title}>My progress</Text>
         <Text style={s.lede}>Mastery, quiz history, and how Learnly steered your path.</Text>
 
@@ -92,7 +109,7 @@ export default function Dashboard() {
             <SectionHeader title="Course completion" subtitle="Share of each course's topics you've mastered." />
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={s.ringScroll}>
               {startedCourses.map((c) => {
-                const { pct } = courseCompletion(c, mastery);
+                const { pct } = courseCompletion(c, index);
                 return (
                   <View key={c.id} style={s.ringItem}>
                     <RingMeter value={pct} size={84} strokeWidth={8} />
@@ -155,7 +172,7 @@ export default function Dashboard() {
               <View style={s.attempt}>
                 <Text style={s.attemptTitle}>{a.lesson_title}</Text>
                 <Text style={s.meta}>
-                  {a.topic} · {a.taken_at}
+                  {a.topic} · {formatWhen(a.taken_at)}
                 </Text>
               </View>
               <Pill label={`${a.score}%`} />

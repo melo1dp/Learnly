@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { api } from '../../lib/api';
@@ -22,11 +22,20 @@ import { colors, fonts, space } from '../../lib/theme';
 
 export default function Quiz() {
   const { id } = useLocalSearchParams();
+  const router = useRouter();
   const [quiz, setQuiz] = useState(null);
   const [answers, setAnswers] = useState({});
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  // Bumped by the retry button to re-run the effect below.
+  const [attempt, setAttempt] = useState(0);
+
+  const load = useCallback(() => {
+    setError('');
+    setQuiz(null);
+    setAttempt((n) => n + 1);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -41,7 +50,7 @@ export default function Quiz() {
     return () => {
       active = false;
     };
-  }, [id]);
+  }, [id, attempt]);
 
   async function submit() {
     setBusy(true);
@@ -55,12 +64,30 @@ export default function Quiz() {
     }
   }
 
-  if (error && !quiz) return <ErrorScreen message={error} />;
-  if (!quiz) return <Loading />;
+  if (error && !quiz) return <ErrorScreen message={error} onRetry={load} />;
+  if (!quiz) return <Loading label="Loading quiz" />;
 
   if (result) return <Result result={result} />;
 
-  const allAnswered = quiz.questions.every((q) => answers[q.id] !== undefined);
+  const questions = quiz.questions || [];
+  const answeredCount = questions.filter((q) => answers[q.id] !== undefined).length;
+  // `[].every()` is true, so a quiz with no questions used to render an enabled
+  // Submit button over an empty page.
+  const allAnswered = questions.length > 0 && answeredCount === questions.length;
+  const remaining = questions.length - answeredCount;
+
+  if (questions.length === 0) {
+    return (
+      <>
+        <Stack.Screen options={{ title: quiz.title }} />
+        <Screen>
+          <H1>{quiz.title}</H1>
+          <Muted>This quiz has no questions yet, so there is nothing to answer.</Muted>
+          <Button title="Back" variant="secondary" onPress={() => router.back()} />
+        </Screen>
+      </>
+    );
+  }
 
   return (
     <>
@@ -69,24 +96,41 @@ export default function Quiz() {
         <H1>{quiz.title}</H1>
         <Muted>Answer every question — your score steers the next lesson.</Muted>
 
-        {quiz.questions.map((q, i) => (
-          <Card key={q.id}>
-            <Text style={s.qIndex}>Question {i + 1}</Text>
-            <Text style={s.question}>{q.text}</Text>
-            <View style={s.options}>
-              {q.options.map((opt, idx) => (
-                <Option
-                  key={idx}
-                  label={opt}
-                  selected={answers[q.id] === idx}
-                  onPress={() => setAnswers((prev) => ({ ...prev, [q.id]: idx }))}
-                />
-              ))}
-            </View>
-          </Card>
-        ))}
+        {questions.map((q, i) => {
+          const unanswered = answers[q.id] === undefined;
+          return (
+            <Card key={q.id}>
+              <Row>
+                <Text style={s.qIndex}>Question {i + 1}</Text>
+                {unanswered ? <Text style={s.unanswered}>Not answered</Text> : null}
+              </Row>
+              <Text style={s.question}>{q.text}</Text>
+              <View
+                style={s.options}
+                accessibilityRole="radiogroup"
+                accessibilityLabel={`Question ${i + 1}: ${q.text}`}
+              >
+                {(q.options || []).map((opt, idx) => (
+                  <Option
+                    key={idx}
+                    label={opt}
+                    selected={answers[q.id] === idx}
+                    onPress={() => setAnswers((prev) => ({ ...prev, [q.id]: idx }))}
+                  />
+                ))}
+              </View>
+            </Card>
+          );
+        })}
 
         <ErrorText>{error}</ErrorText>
+        {/* Submit used to grey out with no explanation, leaving the user to hunt
+            a 10-question page for the one they missed. */}
+        {remaining > 0 ? (
+          <Muted>
+            {remaining} question{remaining === 1 ? '' : 's'} left to answer.
+          </Muted>
+        ) : null}
         <Button
           title={busy ? 'Submitting…' : 'Submit quiz'}
           onPress={submit}
@@ -99,7 +143,8 @@ export default function Quiz() {
 
 function Result({ result }) {
   const router = useRouter();
-  const a = result.adaptation;
+  const a = result.adaptation || {};
+  const status = (a.status || '').replace(/_/g, ' ');
 
   return (
     <>
@@ -111,7 +156,8 @@ function Result({ result }) {
           <Text style={s.outcome}>{a.outcome}</Text>
           <Text style={s.reason}>{a.reason}</Text>
           <Muted>
-            Topic mastery is now {a.mastery} · {a.status.replace('_', ' ')}
+            Topic mastery is now {a.mastery}
+            {status ? ` · ${status}` : ''}
           </Muted>
         </Banner>
 
@@ -128,7 +174,15 @@ function Result({ result }) {
             />
           </Card>
         ) : (
-          <Muted>No further recommendation — you have covered this course.</Muted>
+          // Was a bare line of text with nowhere to go — the end of a course
+          // dead-ended the only forward path in the app.
+          <Card>
+            <Muted>No further recommendation — you have covered this course.</Muted>
+            <Button
+              title="Browse other courses →"
+              onPress={() => router.replace('/')}
+            />
+          </Card>
         )}
 
         <Button
@@ -172,6 +226,11 @@ function Result({ result }) {
 }
 
 const s = StyleSheet.create({
+  unanswered: {
+    fontFamily: fonts.bodyMedium,
+    fontSize: 12,
+    color: colors.muted,
+  },
   qIndex: {
     fontFamily: fonts.bodySemi,
     fontSize: 12,

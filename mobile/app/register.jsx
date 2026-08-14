@@ -6,7 +6,6 @@ import {
   BrandMark,
   Button,
   Card,
-  Choice,
   ErrorText,
   Field,
   Muted,
@@ -14,20 +13,15 @@ import {
 } from "../components/ui";
 import { colors, fonts } from "../lib/theme";
 
-const ROLES = [
-  { value: "student", label: "Student" },
-  { value: "instructor", label: "Instructor" },
-];
+const PASSWORD_MIN_LENGTH = 8;
 
 export default function Register() {
   const { register } = useAuth();
   const router = useRouter();
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    password: "",
-    role: "student",
-  });
+  // No `role`. The picker that used to be here sent the chosen role to the API,
+  // which trusted it — so anyone could sign up as an instructor and author
+  // content. Instructor accounts are provisioned server-side.
+  const [form, setForm] = useState({ name: "", email: "", password: "" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -37,12 +31,7 @@ export default function Register() {
     setError("");
     setBusy(true);
     try {
-      await register(
-        form.name.trim(),
-        form.email.trim(),
-        form.password,
-        form.role,
-      );
+      await register(form.name.trim(), form.email.trim(), form.password);
       router.replace("/welcome");
     } catch (err) {
       setError(err.message);
@@ -51,7 +40,11 @@ export default function Register() {
     }
   }
 
-  const canSubmit = form.name && form.email && form.password && !busy;
+  const canSubmit =
+    form.name.trim() &&
+    form.email.trim() &&
+    form.password.length >= PASSWORD_MIN_LENGTH &&
+    !busy;
 
   return (
     <KeyboardAvoidingView
@@ -59,7 +52,7 @@ export default function Register() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <Screen>
-        <BrandMark subtitle="Choose Student to learn, or Instructor to create courses and lessons." />
+        <BrandMark subtitle="Create an account and your adaptive path starts with your first quiz." />
         <Card>
           <Field
             label="Name"
@@ -83,14 +76,12 @@ export default function Register() {
             onChangeText={set("password")}
             secureTextEntry
             autoComplete="new-password"
-            placeholder="Enter password"
+            placeholder={`At least ${PASSWORD_MIN_LENGTH} characters`}
           />
-          <Choice
-            label="Role"
-            value={form.role}
-            options={ROLES}
-            onChange={set("role")}
-          />
+          {/* Stated up front rather than only as a rejection after submitting. */}
+          {form.password && form.password.length < PASSWORD_MIN_LENGTH ? (
+            <Muted>Passwords need at least {PASSWORD_MIN_LENGTH} characters.</Muted>
+          ) : null}
           <ErrorText>{error}</ErrorText>
           <Button
             title={busy ? "Creating…" : "Create account"}

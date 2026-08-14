@@ -32,13 +32,17 @@ function readingMinutes(body) {
 export default function Lesson() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
-  const { data: lesson, error } = useApi(`/lessons/${id}`);
+  const { data: lesson, error, reload } = useApi(`/lessons/${id}`);
 
-  if (error) return <ErrorScreen message={error} />;
-  if (!lesson) return <Loading />;
+  if (error && !lesson) return <ErrorScreen message={error} onRetry={reload} />;
+  if (!lesson) return <Loading label="Loading lesson" />;
 
-  const blocks = parseLessonBody(lesson.body);
-  const mins = readingMinutes(lesson.body);
+  // `body` has a NOT NULL default server-side, but parseLessonBody calls
+  // .trim() on it unguarded and there is no error boundary above this screen —
+  // one null would be a blank screen with no way back.
+  const body = lesson.body || '';
+  const blocks = parseLessonBody(body);
+  const mins = readingMinutes(body);
   const accent = colorForCourse(lesson.course_id);
 
   return (
@@ -46,9 +50,14 @@ export default function Lesson() {
       <Stack.Screen options={{ title: lesson.title }} />
 
       <Screen>
-        <View style={[s.banner, { backgroundColor: accent }]}>
-          <View style={s.bannerIconWrap}>
-            <Ionicons name="document-text" size={22} color={colors.white} />
+        {/* A dark panel edged in the course colour, rather than white text on a
+            saturated fill: white on these stripes measures 2.9-3.7:1, and the
+            14px description was down at 2.6:1. The identity colour still reads,
+            now as an accent rather than as a background for body text. */}
+        <View style={[s.banner, { borderColor: accent }]}>
+          <View style={[s.bannerAccent, { backgroundColor: accent }]} />
+          <View style={[s.bannerIconWrap, { backgroundColor: `${accent}26` }]}>
+            <Ionicons name="document-text" size={22} color={accent} />
           </View>
           <Text style={s.bannerTitle}>{lesson.title}</Text>
           <View style={s.bannerMeta}>
@@ -83,6 +92,9 @@ export default function Lesson() {
           })}
         </Card>
 
+        {/* A lesson without a quiz used to be a dead end: no quiz button, and no
+            other way forward. Every lesson now offers a route back to its
+            course, so reading is never a one-way door. */}
         <View style={s.cta}>
           {lesson.quiz ? (
             <Button
@@ -90,8 +102,15 @@ export default function Lesson() {
               onPress={() => router.push(`/quizzes/${lesson.quiz.id}`)}
             />
           ) : (
-            <Muted>This lesson has no quiz.</Muted>
+            <Muted>
+              This lesson has no quiz yet, so it won’t change your adaptive path.
+            </Muted>
           )}
+          <Button
+            title="Back to course"
+            variant="secondary"
+            onPress={() => router.push(`/courses/${lesson.course_id}`)}
+          />
         </View>
       </Screen>
     </>
@@ -100,26 +119,30 @@ export default function Lesson() {
 
 const s = StyleSheet.create({
   banner: {
+    backgroundColor: colors.panel2,
+    borderWidth: 1,
     borderRadius: radius.xl,
     padding: space.xl,
+    paddingLeft: space.xl + 4,
     gap: space.sm,
     marginBottom: space.sm,
+    overflow: 'hidden',
   },
+  bannerAccent: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 4 },
   bannerIconWrap: {
     width: 44,
     height: 44,
     borderRadius: radius.md,
-    backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 4,
   },
-  bannerTitle: { ...type.h2, fontFamily: fonts.display, color: colors.white },
+  bannerTitle: { ...type.h2, fontFamily: fonts.display, color: colors.ink },
   bannerMeta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: space.md },
   bannerMetaText: {
     fontFamily: fonts.bodyMedium,
     fontSize: 13,
-    color: 'rgba(255,255,255,0.85)',
+    color: colors.muted,
     textTransform: 'capitalize',
   },
 
@@ -127,7 +150,7 @@ const s = StyleSheet.create({
   paragraph: { ...type.bodyLg, color: colors.ink },
 
   codeBlock: {
-    backgroundColor: '#080a0e',
+    backgroundColor: colors.codeBg,
     borderWidth: 1,
     borderColor: colors.border,
     borderRadius: radius.md,
@@ -137,7 +160,7 @@ const s = StyleSheet.create({
     fontFamily: fonts.mono,
     fontSize: 13,
     lineHeight: 20,
-    color: '#D8F3E4',
+    color: colors.codeInk,
   },
 
   takeaway: {

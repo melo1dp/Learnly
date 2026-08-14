@@ -266,8 +266,16 @@ export function ContinueCard({ lessonTitle, reason, difficulty, onPress }) {
   const { scale, pressIn, pressOut } = usePressScale();
   if (!lessonTitle) return null;
   return (
-    <Pressable onPress={onPress} onPressIn={pressIn} onPressOut={pressOut}>
+    <Pressable
+      onPress={onPress}
+      onPressIn={pressIn}
+      onPressOut={pressOut}
+      accessibilityRole="button"
+      accessibilityLabel={`Continue learning: ${lessonTitle}`}
+      accessibilityHint="Opens the next recommended lesson"
+    >
       <Animated.View style={[s.continueCard, { transform: [{ scale }] }]}>
+        <View style={s.continueAccent} />
         <Text style={s.continueEyebrow}>Continue learning</Text>
         <Text style={s.continueTitle} numberOfLines={2}>
           {lessonTitle}
@@ -375,23 +383,66 @@ export function ErrorText({ children }) {
   return children ? <Text style={s.error}>{children}</Text> : null;
 }
 
-export function Loading() {
+export function Loading({ label = 'Loading' }) {
   return (
     <View style={s.loadingScreen}>
       <LinearGradient
         colors={[colors.bgWash, colors.bg]}
         style={StyleSheet.absoluteFill}
       />
-      <ActivityIndicator color={colors.accent} size="large" />
+      <ActivityIndicator
+        color={colors.accent}
+        size="large"
+        accessibilityLabel={label}
+      />
     </View>
   );
 }
 
-export function ErrorScreen({ message }) {
+/**
+ * Full-screen failure state. `onRetry` is optional only so this can still be
+ * used where there is genuinely nothing to retry — every data screen should
+ * pass one. Without it the only way out of an error used to be switching tabs,
+ * which happened to trigger a refetch and which nothing told the user about.
+ */
+export function ErrorScreen({ message, onRetry }) {
   return (
     <View style={s.errorScreen}>
       <LinearGradient colors={[colors.bgWash, colors.bg]} style={StyleSheet.absoluteFill} />
-      <Text style={s.error}>{message}</Text>
+      <Ionicons
+        name="cloud-offline-outline"
+        size={40}
+        color={colors.muted}
+        style={s.errorIcon}
+      />
+      <Text style={s.errorTitle}>Something went wrong</Text>
+      <Text style={s.errorBody}>{message}</Text>
+      {onRetry ? (
+        <Button title="Try again" onPress={onRetry} style={s.errorRetry} />
+      ) : null}
+    </View>
+  );
+}
+
+/** A non-blocking error, for when the screen already has content to show. */
+export function ErrorBanner({ message, onRetry }) {
+  if (!message) return null;
+  return (
+    <View style={s.errorBanner}>
+      <Ionicons name="warning-outline" size={18} color={colors.bad} />
+      <Text style={s.errorBannerText} numberOfLines={2}>
+        {message}
+      </Text>
+      {onRetry ? (
+        <Pressable
+          onPress={onRetry}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Retry loading"
+        >
+          <Text style={s.errorBannerAction}>Retry</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -402,6 +453,9 @@ export function Button({ title, onPress, disabled, variant = 'primary', style })
     <Pressable
       onPress={onPress}
       disabled={disabled}
+      accessibilityRole="button"
+      accessibilityLabel={title}
+      accessibilityState={{ disabled: !!disabled }}
       style={({ pressed }) => [
         s.btn,
         secondary && s.btnSecondary,
@@ -447,14 +501,23 @@ export function Choice({ label, value, options, onChange, style }) {
   return (
     <View style={[s.field, style]}>
       {label ? <Text style={s.fieldLabel}>{label}</Text> : null}
-      <View style={s.choiceRow}>
+      {/* radiogroup + per-option checked state: selection is otherwise conveyed
+          only by border and text colour, which a screen reader cannot see. */}
+      <View style={s.choiceRow} accessibilityRole="radiogroup">
         {options.map((opt) => {
           const selected = opt.value === value;
           return (
             <Pressable
               key={opt.value}
               onPress={() => onChange(opt.value)}
-              style={[s.choice, selected && s.choiceSelected]}
+              accessibilityRole="radio"
+              accessibilityLabel={opt.label}
+              accessibilityState={{ selected, checked: selected }}
+              style={({ pressed }) => [
+                s.choice,
+                selected && s.choiceSelected,
+                pressed && s.choicePressed,
+              ]}
             >
               <Text style={[s.choiceText, selected && s.choiceTextSelected]}>{opt.label}</Text>
             </Pressable>
@@ -467,7 +530,17 @@ export function Choice({ label, value, options, onChange, style }) {
 
 export function Option({ label, selected, onPress }) {
   return (
-    <Pressable onPress={onPress} style={[s.option, selected && s.optionSelected]}>
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityLabel={label}
+      accessibilityState={{ selected, checked: selected }}
+      style={({ pressed }) => [
+        s.option,
+        selected && s.optionSelected,
+        pressed && s.optionPressed,
+      ]}
+    >
       <View style={[s.radio, selected && s.radioSelected]}>
         {selected ? <View style={s.radioDot} /> : null}
       </View>
@@ -492,7 +565,9 @@ export function ProgressBar({ value, color = colors.accent }) {
   );
 }
 
-const MASTERY_CAP = 3;
+// Matches RULES.MASTERY_TO_ADVANCE in the engine, which clamps mastery_level
+// there. At 3 the bars under-reported: a fully mastered topic showed two thirds.
+const MASTERY_CAP = 2;
 // Brass (not accent) for in_progress — accent and good are both teal-green and
 // read as near-identical for colorblind viewers; brass/good/bad stay distinct.
 const masteryBarColor = {
@@ -678,29 +753,46 @@ const s = StyleSheet.create({
   lessonTitle: { ...type.h3, color: colors.ink },
   lessonMeta: { ...type.caption, color: colors.muted, textTransform: 'capitalize' },
 
+  // Was a solid amber fill with white text on it — the app's single most
+  // important CTA, at 2.07:1 for the title and 1.74:1 for the eyebrow, with a
+  // difficulty Pill that tinted its own text to roughly 1.5:1 against the same
+  // fill. Inverted to a dark panel with an amber edge: the accent still carries
+  // the emphasis, and every label is now read against a surface built for text.
   continueCard: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.panel2,
+    borderWidth: 1,
+    borderColor: colors.accent,
     borderRadius: radius.lg,
     padding: space.xl,
+    paddingLeft: space.xl + 4,
     gap: space.sm,
+    overflow: 'hidden',
     ...shadow.soft,
+  },
+  continueAccent: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
+    backgroundColor: colors.accent,
   },
   continueEyebrow: {
     fontFamily: fonts.bodySemi,
     fontSize: 12,
     letterSpacing: 0.8,
     textTransform: 'uppercase',
-    color: 'rgba(255,255,255,0.75)',
+    color: colors.accent,
   },
-  continueTitle: { fontFamily: fonts.display, fontSize: 22, lineHeight: 28, color: colors.white },
-  continueReason: { ...type.caption, color: 'rgba(255,255,255,0.85)' },
+  continueTitle: { fontFamily: fonts.display, fontSize: 22, lineHeight: 28, color: colors.ink },
+  continueReason: { ...type.caption, color: colors.muted },
   continueFooter: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     marginTop: space.sm,
   },
-  continueCta: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.white },
+  continueCta: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.accent },
 
   scoreHero: {
     alignItems: 'center',
@@ -742,7 +834,43 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: colors.bg,
   },
-  errorScreen: { flex: 1, backgroundColor: colors.bg, padding: space.xl, justifyContent: 'center' },
+  errorScreen: {
+    flex: 1,
+    backgroundColor: colors.bg,
+    padding: space.xl,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  errorIcon: { marginBottom: space.md },
+  errorTitle: {
+    fontFamily: fonts.display,
+    fontSize: 20,
+    color: colors.ink,
+    marginBottom: space.xs,
+    textAlign: 'center',
+  },
+  errorBody: {
+    ...type.body,
+    color: colors.muted,
+    textAlign: 'center',
+    marginBottom: space.lg,
+  },
+  errorRetry: { alignSelf: 'stretch' },
+
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: space.sm,
+    borderWidth: 1,
+    borderColor: colors.bad,
+    backgroundColor: `${colors.bad}14`,
+    borderRadius: radius.md,
+    paddingVertical: space.sm,
+    paddingHorizontal: space.md,
+    marginBottom: space.md,
+  },
+  errorBannerText: { ...type.caption, color: colors.ink, flex: 1 },
+  errorBannerAction: { fontFamily: fonts.bodySemi, fontSize: 13, color: colors.accent },
 
   btn: {
     backgroundColor: colors.accent,
@@ -760,7 +888,10 @@ const s = StyleSheet.create({
   },
   btnDisabled: { opacity: 0.45 },
   btnPressed: { opacity: 0.88, transform: [{ scale: 0.99 }] },
-  btnText: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.white },
+  // Dark ink on amber, not white. White on this accent measures 2.07:1 — WCAG
+  // AA wants 4.5:1 for text this size — and it was the label on every primary
+  // action in the app. colors.bg on the same amber is 9.3:1.
+  btnText: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.bg },
   btnSecondaryText: { color: colors.ink },
 
   pill: {
@@ -853,6 +984,7 @@ const s = StyleSheet.create({
     justifyContent: 'center',
   },
   choiceSelected: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  choicePressed: { opacity: 0.7 },
   choiceText: {
     fontFamily: fonts.bodyMedium,
     fontSize: 14,
@@ -873,6 +1005,9 @@ const s = StyleSheet.create({
     minHeight: 52,
   },
   optionSelected: { borderColor: colors.accent, backgroundColor: colors.accentSoft },
+  // Quiz answers had no pressed state at all, so tapping one felt dead until
+  // the state re-render landed.
+  optionPressed: { opacity: 0.7 },
   optionText: { fontFamily: fonts.bodyMedium, fontSize: 15, color: colors.ink, flex: 1 },
 
   radio: {

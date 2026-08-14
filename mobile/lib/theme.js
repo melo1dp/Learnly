@@ -22,6 +22,10 @@ export const colors = {
   bad: '#E2685C',
   border: 'rgba(255,255,255,0.08)',
   white: '#FFFFFF',
+  // Code blocks sit a shade below the page so they read as inset. Tokens rather
+  // than the literals they used to be inlined as in lessons/[id].jsx.
+  codeBg: '#080a0e',
+  codeInk: '#D8F3E4',
 };
 
 export const difficultyColor = {
