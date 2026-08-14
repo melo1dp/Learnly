@@ -15,9 +15,17 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Hosted Postgres (e.g. Neon) lives outside the API container's filesystem,
 // so the database survives restarts/redeploys — unlike the old SQLite file.
+// Verify the server's TLS certificate. Neon and Supabase both present
+// publicly-trusted certificates, so this works out of the box; disabling
+// verification (as this used to do unconditionally) means an intercepting proxy
+// can read and rewrite every query, including password hashes in transit.
+// DATABASE_SSL_INSECURE exists as an escape hatch for a self-signed local
+// Postgres — it should never be set against a hosted database.
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
+  ssl: {
+    rejectUnauthorized: process.env.DATABASE_SSL_INSECURE !== "true",
+  },
   // Fail fast instead of hanging indefinitely if the network stalls the
   // Postgres wire protocol handshake (seen with some local security software).
   // No query_timeout: initDb()'s pg_advisory_lock() call is meant to block
@@ -148,7 +156,14 @@ export async function initDb() {
       await seedCurriculum();
     }
   } finally {
-    await client.query("SELECT pg_advisory_unlock(727501)");
+    // If the block above threw, this client may already be in a failed state and
+    // the unlock will throw too — masking the real startup error with a useless
+    // one. The lock is released by the connection closing regardless.
+    try {
+      await client.query("SELECT pg_advisory_unlock(727501)");
+    } catch (unlockErr) {
+      console.warn("Could not release the seed advisory lock:", unlockErr.message);
+    }
     client.release();
   }
 }

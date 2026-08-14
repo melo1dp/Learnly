@@ -3,11 +3,20 @@ import bcrypt from "bcryptjs";
 import pool from "../db/connection.js";
 import { signToken, requireAuth } from "../middleware/auth.js";
 import { asyncHandler } from "../middleware/asyncHandler.js";
+import { isValidEmail, passwordProblem } from "../middleware/validate.js";
 
 const router = Router();
 
+const BCRYPT_ROUNDS = 10;
+
+// Compared against when no user matches, so a wrong email and a wrong password
+// cost the same time. `String(email)` used to turn a missing field into the
+// literal "undefined" — truthy, and therefore a registerable address.
+const DUMMY_HASH = bcrypt.hashSync("unmatchable-placeholder", BCRYPT_ROUNDS);
+
 function normalizeEmail(email) {
-  return String(email).trim().toLowerCase();
+  if (typeof email !== "string") return "";
+  return email.trim().toLowerCase();
 }
 
 function publicUser(row) {
@@ -20,12 +29,18 @@ function publicUser(row) {
   };
 }
 
-// POST /api/auth/register  { name, email, password, role? }
+// POST /api/auth/register  { name, email, password }
+//
+// `role` is deliberately NOT read from the body. It used to be, which meant an
+// unauthenticated caller could hand themselves the instructor role simply by
+// asking for it — making requireRole('instructor') on the authoring routes a
+// formality rather than a control. Instructor accounts are provisioned by the
+// seeder; promoting a user is a database operation, not a public endpoint.
 router.post(
   "/register",
   asyncHandler(async (req, res) => {
-    const { name, email, password, role } = req.body || {};
-    const trimmedName = String(name || "").trim();
+    const { name, email, password } = req.body || {};
+    const trimmedName = typeof name === "string" ? name.trim() : "";
     const normalizedEmail = normalizeEmail(email);
 
     if (!trimmedName || !normalizedEmail || !password) {
@@ -33,24 +48,31 @@ router.post(
         .status(400)
         .json({ error: "name, email and password are required" });
     }
-
-    const existing = await pool.query(
-      "SELECT id FROM users WHERE email = $1",
-      [normalizedEmail],
-    );
-    if (existing.rows[0]) {
-      return res.status(409).json({ error: "Email already registered" });
+    if (trimmedName.length > 100) {
+      return res.status(400).json({ error: "Name must be at most 100 characters" });
     }
+    if (!isValidEmail(normalizedEmail)) {
+      return res.status(400).json({ error: "Enter a valid email address" });
+    }
+    const pwProblem = passwordProblem(password);
+    if (pwProblem) return res.status(400).json({ error: pwProblem });
 
-    const wantedRole = role === "instructor" ? "instructor" : "student";
-    const passwordHash = bcrypt.hashSync(password, 10);
+    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+
+    // ON CONFLICT rather than SELECT-then-INSERT: the check and the write are
+    // one statement, so two concurrent registrations for the same address can't
+    // both pass the check and have the loser surface as a unique-violation 500.
     const inserted = await pool.query(
       `INSERT INTO users (name, email, password_hash, role)
-       VALUES ($1, $2, $3, $4)
+       VALUES ($1, $2, $3, 'student')
+       ON CONFLICT (email) DO NOTHING
        RETURNING id, name, email, role, created_at`,
-      [trimmedName, normalizedEmail, passwordHash, wantedRole],
+      [trimmedName, normalizedEmail, passwordHash],
     );
     const user = inserted.rows[0];
+    if (!user) {
+      return res.status(409).json({ error: "Email already registered" });
+    }
 
     res.status(201).json({ token: signToken(user), user });
   }),
@@ -72,7 +94,16 @@ router.post(
       [normalizedEmail],
     );
     const row = result.rows[0];
-    if (!row || !bcrypt.compareSync(password, row.password_hash)) {
+
+    // Always run the comparison, even with no matching user. Short-circuiting on
+    // `!row` returns measurably faster for unknown addresses, which leaks which
+    // emails are registered. bcrypt is async here so a burst of login attempts
+    // doesn't block the event loop for ~90ms each.
+    const matches = await bcrypt.compare(
+      typeof password === "string" ? password : "",
+      row ? row.password_hash : DUMMY_HASH,
+    );
+    if (!row || !matches) {
       return res.status(401).json({ error: "Invalid credentials" });
     }
 
@@ -109,8 +140,9 @@ router.patch(
         .status(400)
         .json({ error: "currentPassword and newPassword are required" });
     }
-    if (String(newPassword).length < 8) {
-      return res.status(400).json({ error: "New password must be at least 8 characters" });
+    const pwProblem = passwordProblem(newPassword);
+    if (pwProblem) {
+      return res.status(400).json({ error: pwProblem.replace("Password", "New password") });
     }
 
     const result = await pool.query(
@@ -118,11 +150,17 @@ router.patch(
       [req.user.id],
     );
     const row = result.rows[0];
-    if (!row || !bcrypt.compareSync(currentPassword, row.password_hash)) {
+    const matches =
+      row &&
+      (await bcrypt.compare(
+        typeof currentPassword === "string" ? currentPassword : "",
+        row.password_hash,
+      ));
+    if (!matches) {
       return res.status(401).json({ error: "Current password is incorrect" });
     }
 
-    const passwordHash = bcrypt.hashSync(newPassword, 10);
+    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
     await pool.query("UPDATE users SET password_hash = $1 WHERE id = $2", [
       passwordHash,
       req.user.id,
