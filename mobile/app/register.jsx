@@ -66,7 +66,7 @@ export default function Register() {
             value={form.name}
             onChangeText={set("name")}
             autoComplete="name"
-            placeholder="Your name"
+            placeholder="Username"
           />
           <Field
             label="Email"
@@ -83,7 +83,7 @@ export default function Register() {
             onChangeText={set("password")}
             secureTextEntry
             autoComplete="new-password"
-            placeholder="Choose a password"
+            placeholder="Enter password"
           />
           <Choice
             label="Role"
