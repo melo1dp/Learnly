@@ -46,12 +46,14 @@ CREATE TABLE quizzes (
 );
 
 -- Quiz questions. `options` is a native JSON array of strings; `correct_index` points into it.
+-- `explanation` is only ever sent to the client after a quiz is submitted, never before.
 CREATE TABLE questions (
   id            INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   quiz_id       INTEGER NOT NULL REFERENCES quizzes(id) ON DELETE CASCADE,
   text          TEXT    NOT NULL,
   options       JSONB   NOT NULL,          -- ["A", "B", "C", "D"]
-  correct_index INTEGER NOT NULL
+  correct_index INTEGER NOT NULL,
+  explanation   TEXT    NOT NULL DEFAULT ''
 );
 
 -- Every quiz submission, with the resulting score (0-100). The data trail.

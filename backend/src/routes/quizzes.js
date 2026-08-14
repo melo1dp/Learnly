@@ -51,7 +51,15 @@ router.post(
       const chosen = Number(answers[q.id]);
       const isCorrect = chosen === q.correct_index;
       if (isCorrect) correct += 1;
-      return { questionId: q.id, chosen, correct_index: q.correct_index, isCorrect };
+      return {
+        questionId: q.id,
+        text: q.text,
+        options: q.options,
+        chosen,
+        correct_index: q.correct_index,
+        isCorrect,
+        explanation: q.explanation,
+      };
     });
     const score = Math.round((correct / questions.length) * 100);
 

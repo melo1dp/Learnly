@@ -24,7 +24,7 @@ const DIFFICULTIES = [
   { value: 'hard', label: 'hard' },
 ];
 
-const blankQuestion = () => ({ text: '', options: ['', ''], correct_index: 0 });
+const blankQuestion = () => ({ text: '', options: ['', ''], correct_index: 0, explanation: '' });
 
 export default function NewLesson() {
   const { id: courseId } = useLocalSearchParams();
@@ -200,6 +200,14 @@ export default function NewLesson() {
             ))}
 
             <Button variant="secondary" title="+ Add option" onPress={() => addOption(qi)} />
+
+            <Field
+              label="Explanation (shown after the quiz is submitted)"
+              value={q.explanation}
+              onChangeText={(explanation) => updateQuestion(qi, { explanation })}
+              placeholder="Why is the correct answer correct?"
+              multiline
+            />
           </Card>
         ))}
 

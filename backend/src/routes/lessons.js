@@ -72,8 +72,8 @@ router.post(
 
         for (const q of cleanQuestions) {
           await client.query(
-            'INSERT INTO questions (quiz_id, text, options, correct_index) VALUES ($1, $2, $3, $4)',
-            [quizId, q.text, JSON.stringify(q.options), q.correct_index],
+            'INSERT INTO questions (quiz_id, text, options, correct_index, explanation) VALUES ($1, $2, $3, $4, $5)',
+            [quizId, q.text, JSON.stringify(q.options), q.correct_index, q.explanation || ''],
           );
         }
       }

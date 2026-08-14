@@ -16,6 +16,7 @@ import {
   Row,
   ScoreHero,
   Screen,
+  SectionHeader,
 } from '../../components/ui';
 import { colors, fonts, space } from '../../lib/theme';
 
@@ -135,6 +136,36 @@ function Result({ result }) {
           title="View my progress →"
           onPress={() => router.replace('/dashboard')}
         />
+
+        <SectionHeader title="Review your answers" />
+        {result.perQuestion.map((q, i) => (
+          <Card key={q.questionId}>
+            <Row>
+              <Text style={s.qIndex}>Question {i + 1}</Text>
+              <Pill label={q.isCorrect ? 'Correct' : 'Incorrect'} tone={q.isCorrect ? 'mastered' : 'struggling'} />
+            </Row>
+            <Text style={s.question}>{q.text}</Text>
+            <View style={s.options}>
+              {q.options.map((opt, idx) => (
+                <View
+                  key={idx}
+                  style={[
+                    s.reviewOption,
+                    idx === q.correct_index && s.reviewOptionCorrect,
+                    idx === q.chosen && idx !== q.correct_index && s.reviewOptionWrong,
+                  ]}
+                >
+                  <Text style={s.reviewOptionText}>{opt}</Text>
+                  {idx === q.correct_index ? <Text style={s.reviewTag}>Correct answer</Text> : null}
+                  {idx === q.chosen && idx !== q.correct_index ? (
+                    <Text style={s.reviewTagWrong}>Your answer</Text>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+            {q.explanation ? <Text style={s.explanation}>{q.explanation}</Text> : null}
+          </Card>
+        ))}
       </Screen>
     </>
   );
@@ -164,4 +195,36 @@ const s = StyleSheet.create({
   },
   reason: { fontFamily: fonts.body, fontSize: 15, lineHeight: 22, color: colors.ink },
   nextTitle: { fontFamily: fonts.bodySemi, fontSize: 16, color: colors.ink, flex: 1 },
+  reviewOption: {
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.panel2,
+    borderRadius: 14,
+    padding: 12,
+    gap: 2,
+  },
+  reviewOptionCorrect: { borderColor: colors.good, backgroundColor: `${colors.good}14` },
+  reviewOptionWrong: { borderColor: colors.bad, backgroundColor: `${colors.bad}14` },
+  reviewOptionText: { fontFamily: fonts.bodyMedium, fontSize: 15, color: colors.ink },
+  reviewTag: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 12,
+    color: colors.good,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  reviewTagWrong: {
+    fontFamily: fonts.bodySemi,
+    fontSize: 12,
+    color: colors.bad,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  explanation: {
+    fontFamily: fonts.body,
+    fontSize: 14,
+    lineHeight: 21,
+    color: colors.muted,
+    marginTop: space.xs,
+  },
 });
