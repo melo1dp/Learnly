@@ -35,7 +35,7 @@ talking to a Node/Express API backed by Postgres.
 | Database | Postgres (hosted, e.g. [Neon](https://neon.tech)'s free tier)   |
 | Auth     | JWT + bcrypt; the token is stored in the device keychain        |
 
-Seed curriculum: **13 courses, 117 lessons, 618 quiz questions** across computing, maths, science, social science, and humanities.
+Seed curriculum: **13 courses, 117 lessons, 1,068 quiz questions** across computing, maths, science, social science, and humanities.
 
 ### What to highlight in the demo
 
@@ -316,9 +316,15 @@ Run these from the **repo root**:
 | `npm run dev`         | Backend + Expo dev server together               |
 | `npm run dev:backend` | Just the API, on :4000 (auto-restarts on change) |
 | `npm run dev:mobile`  | Just the Expo dev server                         |
+| `npm test`            | Run the adaptation-engine test suite             |
 | `npm run ios`         | Build and open on the iOS Simulator (macOS only) |
 | `npm run android`     | Build and open on the Android emulator           |
 | `npm run db:reset`    | **Wipe** and re-seed the database                |
+
+`npm test` uses Node's built-in test runner — there is no test framework to
+install. The suite covers the adaptation engine's rules, thresholds and mastery
+transitions against an in-memory stand-in for Postgres, so it needs no database
+and runs in about a second.
 
 ---
 
