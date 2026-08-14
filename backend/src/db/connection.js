@@ -20,8 +20,12 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
   // Fail fast instead of hanging indefinitely if the network stalls the
   // Postgres wire protocol handshake (seen with some local security software).
+  // No query_timeout: initDb()'s pg_advisory_lock() call is meant to block
+  // for as long as another instance is mid-seed, and a cold Neon compute can
+  // add real latency to the first query — either one legitimately outlasts a
+  // short fixed timeout, and killing that wait crashes the process for no
+  // real problem.
   connectionTimeoutMillis: 10_000,
-  query_timeout: 20_000,
 });
 
 async function seedDemoUsers() {

@@ -114,6 +114,16 @@ export function courseIconFor(title = '') {
   return match ? match[1] : 'book';
 }
 
+// Lightens (positive) or darkens (negative) a #rrggbb hex by a -100..100 amount.
+function shadeColor(hex, amount) {
+  const num = parseInt(hex.replace('#', ''), 16);
+  const amt = Math.round(2.55 * amount);
+  const r = Math.min(255, Math.max(0, (num >> 16) + amt));
+  const g = Math.min(255, Math.max(0, ((num >> 8) & 0xff) + amt));
+  const b = Math.min(255, Math.max(0, (num & 0xff) + amt));
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
 export function usePressScale({ to = 0.98 } = {}) {
   const scale = useRef(new Animated.Value(1)).current;
 
@@ -174,8 +184,22 @@ export function CourseTile({
           },
         ]}
       >
-        <View style={[s.courseThumb, { backgroundColor: stripe }]}>
-          <Ionicons name={icon} size={28} color={colors.white} />
+        <View style={s.courseThumb}>
+          <LinearGradient
+            colors={[shadeColor(stripe, 14), shadeColor(stripe, -30)]}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <Ionicons
+            name={icon}
+            size={84}
+            color="rgba(255,255,255,0.14)"
+            style={s.courseThumbGhost}
+          />
+          <View style={s.courseThumbBadge}>
+            <Ionicons name={icon} size={20} color={colors.white} />
+          </View>
         </View>
 
         <View style={s.courseCardBody}>
@@ -593,7 +617,23 @@ const s = StyleSheet.create({
     ...shadow.soft,
   },
   courseThumb: {
-    height: 72,
+    height: 100,
+    alignItems: 'flex-start',
+    justifyContent: 'flex-end',
+    padding: space.md,
+    overflow: 'hidden',
+  },
+  courseThumbGhost: {
+    position: 'absolute',
+    top: -16,
+    right: -14,
+    transform: [{ rotate: '-16deg' }],
+  },
+  courseThumbBadge: {
+    width: 40,
+    height: 40,
+    borderRadius: radius.md,
+    backgroundColor: 'rgba(255,255,255,0.2)',
     alignItems: 'center',
     justifyContent: 'center',
   },

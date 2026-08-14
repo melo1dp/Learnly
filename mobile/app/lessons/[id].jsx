@@ -1,4 +1,4 @@
-import { Platform, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import Ionicons from '@expo/vector-icons/Ionicons';
 import { useApi } from '../../lib/useApi';
@@ -127,15 +127,17 @@ const s = StyleSheet.create({
   paragraph: { ...type.bodyLg, color: colors.ink },
 
   codeBlock: {
-    backgroundColor: colors.ink,
+    backgroundColor: '#080a0e',
+    borderWidth: 1,
+    borderColor: colors.border,
     borderRadius: radius.md,
     padding: space.lg,
   },
   codeText: {
-    fontFamily: Platform.select({ ios: 'Courier', android: 'monospace', default: 'monospace' }),
+    fontFamily: fonts.mono,
     fontSize: 13,
     lineHeight: 20,
-    color: '#CFEAE1',
+    color: '#D8F3E4',
   },
 
   takeaway: {
