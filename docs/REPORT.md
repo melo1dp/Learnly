@@ -65,9 +65,9 @@ deliver it on the device learners actually carry.
 > a separate React + Vite web client. Maintaining two clients would have doubled the surface
 > area to test for no additional marks, so the bespoke web client was dropped. React Native
 > Web then gives us a browser build of the *same* codebase at no extra maintenance cost —
-> `npm run dev:web` runs it locally, and it deploys to Netlify from the same source
-> (`netlify.toml`). This is a single client that happens to render on three platforms, not
-> two clients. The API is client-agnostic either way.
+> `npm run dev:web` runs it locally, and it deploys as a static site alongside the API from
+> the same source (`render.yaml`). This is a single client that happens to render on three
+> platforms, not two clients. The API is client-agnostic either way.
 
 ---
 
