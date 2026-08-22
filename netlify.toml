@@ -1,8 +1,0 @@
-[build]
-  publish = "dist"
-  command = "npm install && npx expo export --platform web"
-
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200

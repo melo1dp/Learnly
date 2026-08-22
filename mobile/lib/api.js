@@ -37,8 +37,13 @@ let cached;
 export function apiBaseUrl() {
   if (cached) return cached;
 
+  // An explicit URL always wins, in development *and* in production. This was
+  // previously gated behind `__DEV__ && explicit`, which meant a release build
+  // silently ignored EXPO_PUBLIC_API_URL and always used the hardcoded fallback
+  // below — the opposite of what this file's header and the README both claim,
+  // and impossible to notice without reading the condition.
   const explicit = process.env.EXPO_PUBLIC_API_URL;
-  if (__DEV__ && explicit) {
+  if (explicit) {
     cached = explicit.replace(/\/$/, "");
     return cached;
   }
@@ -51,6 +56,9 @@ export function apiBaseUrl() {
     }
   }
 
+  // Last resort, so a build with no configuration still reaches a live API
+  // rather than failing at startup. Deployments should set EXPO_PUBLIC_API_URL
+  // instead of relying on this — see render.yaml.
   cached = "https://unilearnly.onrender.com";
   return cached;
 }

@@ -1,0 +1,75 @@
+# Render Blueprint — both services in one file.
+#
+# Render only reads render.yaml from the REPOSITORY ROOT. An earlier copy lived
+# in backend/, where Render never looked at it, so the API was in practice
+# configured entirely through the dashboard and the committed file was
+# decorative. Keeping the deployment definition in version control means it can
+# be reviewed, and means a redeploy does not depend on remembering what someone
+# typed into a web form months ago.
+#
+# `rootDir` points at a workspace rather than the repo root. npm walks up, finds
+# the workspace root and installs the whole tree, then runs that workspace's
+# scripts — which is why `npm install` reports all 144 packages.
+#
+# ⚠ BEFORE APPLYING THIS AS A BLUEPRINT
+# The API below is named to match the service that already exists
+# (unilearnly.onrender.com). Render matches existing services by name, so this
+# adopts that service rather than creating a duplicate. If your API service is
+# named something else in the dashboard, change `name` here to match it first —
+# otherwise Render will stand up a second API on a different URL and the web
+# client will point at the wrong one.
+#
+# If you would rather not touch the API at all: ignore the blueprint and create
+# the static site by hand in the dashboard, using the settings under
+# "unilearnly-web" below.
+
+services:
+  # --------------------------------------------------------------------------
+  # REST API
+  # --------------------------------------------------------------------------
+  - type: web
+    name: unilearnly
+    runtime: node
+    plan: free
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Secrets. `sync: false` means Render prompts for the value and keeps it
+      # in the dashboard — it is never stored in this file or in git.
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+
+  # --------------------------------------------------------------------------
+  # Web client — the same React Native codebase, exported for the browser
+  # --------------------------------------------------------------------------
+  - type: web
+    name: unilearnly-web
+    runtime: static
+    rootDir: mobile
+    # --clear is not optional. EXPO_PUBLIC_* variables are inlined into the
+    # bundle at transform time, and Metro caches transforms — so a cached build
+    # will happily bake in whatever the API URL was last time and ignore the
+    # value set here. Verified locally: without --clear the variable appeared to
+    # be ignored entirely; with it, the URL is inlined and the fallback branch
+    # is eliminated as dead code.
+    buildCommand: npm install && npx expo export --platform web --clear
+    staticPublishPath: dist
+    envVars:
+      # Baked into the bundle at build time. Now that api.js honours this in
+      # production, the API address is configuration rather than a constant
+      # compiled into the client.
+      - key: EXPO_PUBLIC_API_URL
+        value: https://unilearnly.onrender.com
+    routes:
+      # app.json sets web output to "single", so this is a single-page app:
+      # every route must serve index.html or a refresh on /courses/4 is a 404,
+      # because no such file exists in the build output.
+      - type: rewrite
+        source: /*
+        destination: /index.html

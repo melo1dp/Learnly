@@ -346,14 +346,48 @@ variable rather than committing it.
 
 The app resolves the API address in this order:
 
-1. **`EXPO_PUBLIC_API_URL`**, if set — use this to point at a staging or production API, and
-   note it is **required** for a packaged (non-development) build:
+1. **`EXPO_PUBLIC_API_URL`**, if set — in development *and* in production. Use this to point
+   a build at a staging or production API:
    ```bash
    EXPO_PUBLIC_API_URL=https://api.example.com npm run dev:mobile
    ```
 2. Otherwise, in development, the host serving the JS bundle (your computer), on port 4000.
+3. Otherwise, a hardcoded production fallback, so a build with no configuration still
+   reaches a live API instead of failing at startup.
 
 See [`mobile/lib/api.js`](mobile/lib/api.js).
+
+> **Building for production:** `EXPO_PUBLIC_*` variables are inlined at bundle time and
+> Metro caches transforms, so pass `--clear` when the value changes — otherwise the build
+> silently reuses the previous URL:
+> ```bash
+> EXPO_PUBLIC_API_URL=https://api.example.com npx expo export --platform web --clear
+> ```
+
+---
+
+## Deployment
+
+Both services are defined in [`render.yaml`](render.yaml) at the repository root, which is
+the only place Render reads a blueprint from.
+
+| Service | Type | Root | Build | Output |
+| ------- | ---- | ---- | ----- | ------ |
+| `unilearnly` (API) | Node | `backend` | `npm install` | `npm start` on `$PORT` |
+| `unilearnly-web` | Static | `mobile` | `npm install && npx expo export --platform web --clear` | `dist` |
+
+`DATABASE_URL` and `JWT_SECRET` are marked `sync: false`, so Render prompts for them and
+keeps them in the dashboard rather than in this repository. **The API refuses to start in
+production if `JWT_SECRET` is unset** — that is deliberate; see
+[`backend/src/middleware/auth.js`](backend/src/middleware/auth.js).
+
+The web client is a single-page app (`app.json` sets web `output` to `single`), so the
+static service rewrites every route to `index.html`. Without that rewrite, refreshing on a
+deep link such as `/courses/4` returns a 404.
+
+> The project was previously deployed to Netlify. `netlify.toml` has been removed; the
+> equivalent configuration now lives in `render.yaml`, including the base directory and the
+> SPA rewrite that were previously only set in the Netlify dashboard.
 
 ---
 
