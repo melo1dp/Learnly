@@ -140,7 +140,7 @@ the same Wi-Fi finds the backend with no configuration. A packaged build instead
 
 ## 6. Data Model
 
-Eight tables (see `backend/src/db/schema.sql`):
+Nine tables (see `backend/src/db/schema.sql`):
 
 | Table | Purpose | Key fields |
 |-------|---------|-----------|

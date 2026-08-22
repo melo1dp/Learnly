@@ -1,5 +1,5 @@
 -- Learnly adaptive e-learning schema (Postgres)
--- Kept deliberately small: eight tables cover the whole MVP.
+-- Kept deliberately small: nine tables cover the whole MVP.
 
 DROP TABLE IF EXISTS learner_progress;
 DROP TABLE IF EXISTS recommendations;
